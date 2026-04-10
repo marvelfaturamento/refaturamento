@@ -554,14 +554,19 @@ function connectSupabase(){
   }
   document.getElementById('syncStatus').textContent = 'Supabase pronta para sincronizar.';
 }
-async function syncSupabase(){
-  if(!ensureSupabaseConnected()){
+async function syncSupabase() {
+  if (!ensureSupabaseConnected()) {
     alert('Configure a Supabase no HTML primeiro.');
     return;
   }
 
-  const key = state.selectedMonthKey || ${document.getElementById('annualYear').value}-${String(document.getElementById('annualMonth').value || '').padStart(2,'0')};
-  if(!key || !/^\d{4}-\d{2}$/.test(key)){
+  const key =
+    state.selectedMonthKey ||
+    `${document.getElementById('annualYear').value}-${String(
+      document.getElementById('annualMonth').value || ''
+    ).padStart(2, '0')}`;
+
+  if (!key || !/^\d{4}-\d{2}$/.test(key)) {
     alert('Salve um mês antes de sincronizar.');
     return;
   }
@@ -569,7 +574,7 @@ async function syncSupabase(){
   const [ano, mes] = key.split('-');
 
   const refRows = [
-    ...(state.refaturados || []).map(r => ({
+    ...(state.refaturados || []).map((r) => ({
       mes,
       ano,
       tipo: 'refaturado',
@@ -584,9 +589,9 @@ async function syncSupabase(){
       frete_refaturado: Number(r.freteRefaturado || 0),
       frete_substituto: 0,
       reduzido: String(r.reduzido || '').trim(),
-      motivo_baixa: String(r.motivoBaixa || '').trim()
+      motivo_baixa: String(r.motivoBaixa || '').trim(),
     })),
-    ...(state.substitutos || []).map(r => ({
+    ...(state.substitutos || []).map((r) => ({
       mes,
       ano,
       tipo: 'substituto',
@@ -601,28 +606,32 @@ async function syncSupabase(){
       frete_refaturado: 0,
       frete_substituto: Number(r.freteSubstituto || 0),
       reduzido: String(r.reduzido || '').trim(),
-      motivo_baixa: String(r.motivoBaixa || '').trim()
-    }))
-  ].filter(r => r.documento);
+      motivo_baixa: String(r.motivoBaixa || '').trim(),
+    })),
+  ].filter((r) => r.documento);
 
-  const prodRows = (state.prodRows || []).map(r => {
-    const ctrc = Number(r.ctrc || 0);
-    const manifesto = Number(r.manifesto || 0);
-    const ost = Number(r.ost || 0);
-    const nfFat = Number(r.nf_fat || r.nf || 0);
+  const prodRows = (state.prodRows || [])
+    .map((r) => {
+      const ctrc = Number(r.ctrc || 0);
+      const manifesto = Number(r.manifesto || 0);
+      const ost = Number(r.ost || 0);
+      const nfFat = Number(r.nf_fat || r.nf || 0);
 
-    return {
-      mes,
-      ano,
-      operador: String(r.usuario || r.operador || '').trim().toUpperCase(),
-      ctrc,
-      manifesto,
-      ost,
-      nf_fat: nfFat,
-      total_docs: ctrc + manifesto + ost + nfFat,
-      docs_performance: ctrc + ost
-    };
-  }).filter(r => r.operador);
+      return {
+        mes,
+        ano,
+        operador: String(r.usuario || r.operador || '')
+          .trim()
+          .toUpperCase(),
+        ctrc,
+        manifesto,
+        ost,
+        nf_fat: nfFat,
+        total_docs: ctrc + manifesto + ost + nfFat,
+        docs_performance: ctrc + ost,
+      };
+    })
+    .filter((r) => r.operador);
 
   document.getElementById('syncStatus').textContent = 'Sincronizando...';
 
@@ -650,12 +659,17 @@ async function syncSupabase(){
 
   const res3 = await state.supabase
     .from('meses_importados')
-    .upsert([{
-      mes,
-      ano,
-      tem_refaturamento: refRows.length > 0,
-      tem_produtividade: prodRows.length > 0
-    }], { onConflict: 'mes,ano' });
+    .upsert(
+      [
+        {
+          mes,
+          ano,
+          tem_refaturamento: refRows.length > 0,
+          tem_produtividade: prodRows.length > 0,
+        },
+      ],
+      { onConflict: 'mes,ano' }
+    );
 
   if (res3.error) {
     document.getElementById('syncStatus').textContent =
@@ -665,7 +679,7 @@ async function syncSupabase(){
   }
 
   document.getElementById('syncStatus').textContent =
-    Sincronizado com sucesso. Ref: ${refRows.length} | Prod: ${prodRows.length};
+    `Sincronizado com sucesso. Ref: ${refRows.length} | Prod: ${prodRows.length}`;
 }
 function esc(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function fmtMoney(v){ return Number(v || 0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
