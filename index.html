@@ -565,7 +565,9 @@ async function syncSupabase(){
   ];
   const prodRows = (state.prodRows||[]).map(r => ({ usuario:prodNorm(r.usuario), tipo_doc:prodNorm(r.tipo), quantidade:Number(r.quantidade||0), mes, ano }));
   const res1 = await state.supabase.from('refaturamento_importado').upsert(refRows, { onConflict:'documento,mes,ano,tipo' });
-  const res2 = await state.supabase.from('produtividade_importado').upsert(prodRows, { onConflict:'usuario,tipo_doc,mes,ano' });
+  const res2 = await state.supabase.from('produtividade_usuarios').upsert(prodRows, { onConflict:'usuario,tipo_doc,mes,ano' });
+  const res3 = await state.supabase.from('meses_importados').upsert([{ mes, ano, tem_refaturamento: refRows.length > 0, tem_produtividade: prodRows.length > 0
+  }], { onConflict: 'mes,ano' });
   document.getElementById('syncStatus').textContent = (res1.error || res2.error) ? `Erro: ${res1.error?.message || res2.error?.message}` : 'Sincronização concluída.';
 }
 function esc(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
