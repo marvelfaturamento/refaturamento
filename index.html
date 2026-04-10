@@ -560,7 +560,7 @@ async function syncSupabase(){
     return;
   }
 
-  const key = state.selectedMonthKey || `${document.getElementById('annualYear').value}-${String(document.getElementById('annualMonth').value || '').padStart(2,'0')}`;
+  const key = state.selectedMonthKey || ${document.getElementById('annualYear').value}-${String(document.getElementById('annualMonth').value || '').padStart(2,'0')};
   if(!key || !/^\d{4}-\d{2}$/.test(key)){
     alert('Salve um mês antes de sincronizar.');
     return;
@@ -568,7 +568,6 @@ async function syncSupabase(){
 
   const [ano, mes] = key.split('-');
 
-  // REFATURAMENTO
   const refRows = [
     ...(state.refaturados || []).map(r => ({
       mes,
@@ -585,8 +584,7 @@ async function syncSupabase(){
       frete_refaturado: Number(r.freteRefaturado || 0),
       frete_substituto: 0,
       reduzido: String(r.reduzido || '').trim(),
-      motivo_baixa: String(r.motivoBaixa || '').trim(),
-      payload: r
+      motivo_baixa: String(r.motivoBaixa || '').trim()
     })),
     ...(state.substitutos || []).map(r => ({
       mes,
@@ -603,12 +601,10 @@ async function syncSupabase(){
       frete_refaturado: 0,
       frete_substituto: Number(r.freteSubstituto || 0),
       reduzido: String(r.reduzido || '').trim(),
-      motivo_baixa: String(r.motivoBaixa || '').trim(),
-      payload: r
+      motivo_baixa: String(r.motivoBaixa || '').trim()
     }))
   ].filter(r => r.documento);
 
-  // PRODUTIVIDADE
   const prodRows = (state.prodRows || []).map(r => {
     const ctrc = Number(r.ctrc || 0);
     const manifesto = Number(r.manifesto || 0);
@@ -624,18 +620,33 @@ async function syncSupabase(){
       ost,
       nf_fat: nfFat,
       total_docs: ctrc + manifesto + ost + nfFat,
-      docs_performance: ctrc + ost,
-      payload: r
+      docs_performance: ctrc + ost
     };
   }).filter(r => r.operador);
+
+  document.getElementById('syncStatus').textContent = 'Sincronizando...';
 
   const res1 = await state.supabase
     .from('refaturamento_importado')
     .upsert(refRows, { onConflict: 'mes,ano,tipo,documento' });
 
+  if (res1.error) {
+    document.getElementById('syncStatus').textContent =
+      'Erro em refaturamento_importado: ' + res1.error.message;
+    console.error('Erro refaturamento_importado:', res1.error);
+    return;
+  }
+
   const res2 = await state.supabase
     .from('produtividade_usuarios')
     .upsert(prodRows, { onConflict: 'mes,ano,operador' });
+
+  if (res2.error) {
+    document.getElementById('syncStatus').textContent =
+      'Erro em produtividade_usuarios: ' + res2.error.message;
+    console.error('Erro produtividade_usuarios:', res2.error);
+    return;
+  }
 
   const res3 = await state.supabase
     .from('meses_importados')
@@ -646,11 +657,15 @@ async function syncSupabase(){
       tem_produtividade: prodRows.length > 0
     }], { onConflict: 'mes,ano' });
 
-  const err = res1.error || res2.error || res3.error;
+  if (res3.error) {
+    document.getElementById('syncStatus').textContent =
+      'Erro em meses_importados: ' + res3.error.message;
+    console.error('Erro meses_importados:', res3.error);
+    return;
+  }
 
-  document.getElementById('syncStatus').textContent = err
-    ? ('Erro: ' + err.message)
-    : `Sincronizado com sucesso. Ref: ${refRows.length} | Prod: ${prodRows.length}`;
+  document.getElementById('syncStatus').textContent =
+    Sincronizado com sucesso. Ref: ${refRows.length} | Prod: ${prodRows.length};
 }
 function esc(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function fmtMoney(v){ return Number(v || 0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
