@@ -397,7 +397,8 @@ state = {
   annual: readStorage('painel_ref_annual_v30', {}),
   annualProd: readStorage('painel_ref_annual_prod_v34', {}),
   browserCache: readStorage('painel_ref_browser_cache_v41', null),
-  browserMonth: readStorage('painel_ref_browser_month_v41', '')
+  browserMonth: readStorage('painel_ref_browser_month_v41', ''),
+  remoteMonths: []
 };
 
 function readStorage(key, fallback){
@@ -440,13 +441,15 @@ function applySnapshot(snapshot){
 function refreshMonthViewSelect(){
   const select = document.getElementById('monthViewSelect');
   if(!select) return;
-  const keys = Object.keys(state.annual).sort();
+  const localKeys = Object.keys(state.annual || {});
+  const remoteKeys = Array.isArray(state.remoteMonths) ? state.remoteMonths.slice() : [];
+  const keys = Array.from(new Set([...localKeys, ...remoteKeys])).sort();
   let html = '<option value="">Último importado</option>';
   html += keys.map(k => `<option value="${esc(k)}">${monthLabel(k)}</option>`).join('');
   select.innerHTML = html;
   select.value = state.selectedMonthKey || '';
 }
-function applyMonthViewSelection(){
+async function applyMonthViewSelection(){
   const select = document.getElementById('monthViewSelect');
   if(!select) return;
   const key = select.value || '';
@@ -458,14 +461,17 @@ function applyMonthViewSelection(){
     return;
   }
   const entry = state.annual[key];
-  if(!entry || !entry.snapshot){
-    alert('Esse mês foi salvo sem base detalhada. Reimporte o mês e clique em Salvar mês novamente.');
+  if(entry && entry.snapshot){
+    state.selectedMonthKey = key;
+    applySnapshot(entry.snapshot);
+    saveBrowserCache();
+    renderAll();
     return;
   }
-  state.selectedMonthKey = key;
-  applySnapshot(entry.snapshot);
-  saveBrowserCache();
-  renderAll();
+  const ok = await loadMonthFromSupabase(key);
+  if(!ok){
+    alert('Não foi possível carregar esse mês da Supabase.');
+  }
 }
 
 const TRACKED_USERS = [
@@ -2215,6 +2221,7 @@ window.addEventListener('DOMContentLoaded', function(){
   bindExcelImport();
   bindProdExcelImport();
   bootstrap();
+  loadLatestMonthFromSupabase().catch(console.error);
 });
 
 
