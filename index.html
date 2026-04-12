@@ -395,7 +395,9 @@ state = {
   manual: readStorage('painel_ref_manual_v30', {}),
   reasons: readStorage('painel_ref_reasons_v30', DEFAULT_REASONS.slice()),
   annual: readStorage('painel_ref_annual_v30', {}),
-  annualProd: readStorage('painel_ref_annual_prod_v34', {})
+  annualProd: readStorage('painel_ref_annual_prod_v34', {}),
+  browserCache: readStorage('painel_ref_browser_cache_v41', null),
+  browserMonth: readStorage('painel_ref_browser_month_v41', '')
 };
 
 function readStorage(key, fallback){
@@ -407,6 +409,17 @@ function readStorage(key, fallback){
   }catch(err){ return fallback; }
 }
 function writeStorage(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
+function saveBrowserCache(){
+  writeStorage('painel_ref_browser_cache_v41', cloneMonthlySnapshot());
+  writeStorage('painel_ref_browser_month_v41', state.selectedMonthKey || '');
+}
+function restoreBrowserCache(){
+  if(!state.browserCache) return false;
+  applySnapshot(state.browserCache);
+  state.live = cloneMonthlySnapshot();
+  state.selectedMonthKey = state.browserMonth || '';
+  return true;
+}
 function cloneMonthlySnapshot(){
   return JSON.parse(JSON.stringify({
     sheets: state.sheets,
@@ -440,6 +453,7 @@ function applyMonthViewSelection(){
   if(!key){
     state.selectedMonthKey = '';
     applySnapshot(state.live);
+    saveBrowserCache();
     renderAll();
     return;
   }
@@ -450,6 +464,7 @@ function applyMonthViewSelection(){
   }
   state.selectedMonthKey = key;
   applySnapshot(entry.snapshot);
+  saveBrowserCache();
   renderAll();
 }
 
@@ -688,112 +703,11 @@ async function syncSupabase(){
   }
 
   document.getElementById('syncStatus').textContent = `Sincronizado com sucesso. Ref: ${refRows.length} | Prod: ${prodRows.length}`;
+  saveBrowserCache();
 }
 
 function esc(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function fmtMoney(v){ return Number(v || 0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-async function loadMonthFromSupabase(monthKey) {
-  if (!ensureSupabaseConnected()) return false;
-  if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) return false;
-
-  const [ano, mes] = monthKey.split('-');
-
-  const { data: refData, error: refError } = await state.supabase
-    .from('refaturamento_importado')
-    .select('*')
-    .eq('ano', ano)
-    .eq('mes', mes);
-
-  if (refError) {
-    console.error('Erro carregando refaturamento_importado:', refError);
-    document.getElementById('syncStatus').textContent =
-      'Erro ao carregar refaturamento: ' + refError.message;
-    return false;
-  }
-
-  const { data: prodData, error: prodError } = await state.supabase
-    .from('produtividade_usuarios')
-    .select('*')
-    .eq('ano', ano)
-    .eq('mes', mes);
-
-  if (prodError) {
-    console.error('Erro carregando produtividade_usuarios:', prodError);
-    document.getElementById('syncStatus').textContent =
-      'Erro ao carregar produtividade: ' + prodError.message;
-    return false;
-  }
-
-  state.refaturados = (refData || [])
-    .filter(r => r.tipo === 'refaturado')
-    .map(r => ({
-      refaturado: r.documento || '',
-      original: r.documento_original || '',
-      setorLancamento: r.setor || '',
-      reduzido: r.reduzido || '',
-      tomadorRefaturado: r.cliente || '',
-      userSetor: r.operador || '',
-      debit: Number(r.debito || 0),
-      freteOriginal: Number(r.frete_original || 0),
-      freteRefaturado: Number(r.frete_refaturado || 0),
-      motivoBaixa: r.motivo_baixa || ''
-    }));
-
-  state.substitutos = (refData || [])
-    .filter(r => r.tipo === 'substituto')
-    .map(r => ({
-      substituto: r.documento || '',
-      original: r.documento_original || '',
-      reduzido: r.reduzido || '',
-      tomadorSubstituto: r.cliente || '',
-      operadorOriginal: r.operador || '',
-      freteOriginal: Number(r.frete_original || 0),
-      freteSubstituto: Number(r.frete_substituto || 0),
-      motivoBaixa: r.motivo_baixa || ''
-    }));
-
-  state.prodRows = (prodData || []).map(r => ({
-    operador: r.operador || '',
-    usuario: r.operador || '',
-    ctrc: Number(r.ctrc || 0),
-    manifesto: Number(r.manifesto || 0),
-    ost: Number(r.ost || 0),
-    nf_fat: Number(r.nf_fat || 0),
-    total_docs: Number(r.total_docs || 0),
-    docs_performance: Number(r.docs_performance || 0)
-  }));
-
-  state.selectedMonthKey = monthKey;
-
-  const monthSel = document.getElementById('monthSelector');
-  if (monthSel) monthSel.value = monthKey;
-
-  document.getElementById('syncStatus').textContent =
-    `Mês ${mes}/${ano} carregado da Supabase. Ref: ${state.refaturados.length + state.substitutos.length} | Prod: ${state.prodRows.length}`;
-
-  if (typeof renderAll === 'function') renderAll();
-  if (typeof renderAnnual === 'function') renderAnnual();
-  if (typeof renderPerformanceUsers === 'function') renderPerformanceUsers();
-
-  return true;
-}
-
-async function loadLatestMonthFromSupabase() {
-  if (!ensureSupabaseConnected()) return;
-
-  const { data, error } = await state.supabase
-    .from('meses_importados')
-    .select('*')
-    .order('ano', { ascending: false })
-    .order('mes', { ascending: false })
-    .limit(1);
-
-  if (error || !data || !data.length) return;
-
-  const last = data[0];
-  const monthKey = `${last.ano}-${String(last.mes).padStart(2, '0')}`;
-  await loadMonthFromSupabase(monthKey);
-}
 function parseDateCell(v){
   if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
   const m = String(v || '').match(/(\d{2})\/(\d{2})\/(\d{2,4})/);
@@ -1490,6 +1404,7 @@ function saveCurrentMonthToAnnual(){
   state.annual[key] = { ...currentAnnualSummary(), snapshot: cloneMonthlySnapshot() };
   writeStorage('painel_ref_annual_v30', state.annual);
   refreshMonthViewSelect();
+  saveBrowserCache();
   renderAnnualView();
   if(AUTO_SYNC_ON_SAVE) syncSupabase().catch(console.error);
   alert('Mês salvo na base anual.');
@@ -1878,6 +1793,7 @@ function saveCurrentMonthToAnnual(){
   state.annual[key] = { ...currentAnnualSummary(), snapshot: cloneMonthlySnapshot() };
   writeStorage('painel_ref_annual_v30', state.annual);
   refreshMonthViewSelect();
+  saveBrowserCache();
   renderAnnualView();
   if(AUTO_SYNC_ON_SAVE) syncSupabase().catch(console.error);
   alert('Mês salvo na base anual.');
@@ -2246,6 +2162,7 @@ function bindExcelImport(){
           '\nSubstitutos: ' + state.substitutos.length +
           '\nLinhas de setor: ' + state.setores.length
         );
+        saveBrowserCache();
         renderAll();
       }catch(err){
         console.error(err);
@@ -2269,6 +2186,8 @@ function bindProdExcelImport(){
         state.prodRows = parseProdWorkbook(workbook);
         state.live.prodRows = JSON.parse(JSON.stringify(state.prodRows));
         document.getElementById('prodImportMsg').textContent = `Excel de produtividade carregado. Registros: ${state.prodRows.length}`;
+        saveBrowserCache();
+        saveBrowserCache();
         renderAll();
       }catch(err){
         console.error(err);
@@ -2282,6 +2201,10 @@ function bindProdExcelImport(){
 function bootstrap(){
   document.getElementById('reasonBox').value = state.reasons.join('\n');
   connectSupabase();
+  restoreBrowserCache();
+  refreshMonthViewSelect();
+  const sel = document.getElementById('monthViewSelect');
+  if(sel) sel.value = state.selectedMonthKey || '';
   renderAll();
 }
 window.addEventListener('DOMContentLoaded', function(){
@@ -2292,7 +2215,6 @@ window.addEventListener('DOMContentLoaded', function(){
   bindExcelImport();
   bindProdExcelImport();
   bootstrap();
-  loadLatestMonthFromSupabase();
 });
 
 
@@ -2422,25 +2344,6 @@ function renderPerformanceView(){
       options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'#fff' } }, datalabels:{ color:'#fff', formatter:v => v || '', display:true } } }
     });
   }
-  document.addEventListener('DOMContentLoaded', () => {
-  const monthSelector = document.getElementById('monthSelector');
-
-  if (monthSelector) {
-    monthSelector.addEventListener('change', async () => {
-      if (!monthSelector.value) return;
-
-      const ok = await loadMonthFromSupabase(monthSelector.value);
-
-      if (!ok) {
-        alert('Erro ao carregar mês da Supabase');
-      }
-    });
-  }
-});
-
-window.addEventListener('load', async () => {
-  await loadLatestMonthFromSupabase();
-});
 }
 
 </script>
