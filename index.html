@@ -575,7 +575,6 @@ function connectSupabase(){
   }
   document.getElementById('syncStatus').textContent = 'Supabase pronta para sincronizar.';
 }
-
 async function syncSupabase(){
   if(!ensureSupabaseConnected()){
     alert('Configure a Supabase no HTML primeiro.');
@@ -584,19 +583,23 @@ async function syncSupabase(){
 
   const refAno = String(document.getElementById('annualYear')?.value || '').trim();
   const refMes = String(document.getElementById('annualMonth')?.value || '').padStart(2,'0');
-  const prodAno = String(document.getElementById('prodYear')?.value || refAno).trim();
-  const prodMes = String(document.getElementById('prodMonth')?.value || refMes).padStart(2,'0');
+  const prodAno = String(document.getElementById('prodYear')?.value || '').trim();
+  const prodMes = String(document.getElementById('prodMonth')?.value || '').padStart(2,'0');
 
   if(!/^\d{4}$/.test(refAno) || !/^\d{2}$/.test(refMes)){
-    alert('Selecione mês/ano do refaturamento antes de sincronizar.');
+    alert('Preencha mês/ano do refaturamento antes de sincronizar.');
     return;
   }
-  if(!/^\d{4}$/.test(prodAno) || !/^\d{2}$/.test(prodMes)){
-    alert('Selecione mês/ano da produtividade antes de sincronizar.');
+  if((state.prodRows || []).length && (!/^\d{4}$/.test(prodAno) || !/^\d{2}$/.test(prodMes))){
+    alert('Preencha mês/ano da produtividade antes de sincronizar.');
     return;
   }
 
+  const refKey = `${refAno}-${refMes}`;
+  const prodKey = `${prodAno}-${prodMes}`;
+
   const refMap = new Map();
+
   (state.refaturados || []).forEach(r => {
     const documento = String(r.refaturado || '').trim();
     if(!documento) return;
@@ -645,6 +648,30 @@ async function syncSupabase(){
     if(!refMap.has(k)) refMap.set(k, row);
   });
 
+  (state.setores || []).forEach(s => {
+    const documento = String(s.docto || '').trim();
+    if(!documento) return;
+    const row = {
+      mes: refMes,
+      ano: refAno,
+      tipo: 'setor',
+      documento,
+      documento_original: Array.isArray(s.documentos) ? s.documentos.join(',') : String(s.documentos || ''),
+      cte: documento,
+      setor: String(s.setor || '').trim(),
+      cliente: String(s.cliente || '').trim(),
+      operador: String(s.usuario || '').trim().toUpperCase(),
+      debito: Number(s.debit || 0),
+      frete_original: 0,
+      frete_refaturado: 0,
+      frete_substituto: 0,
+      reduzido: String(s.setor || '').trim(),
+      motivo_baixa: ''
+    };
+    const k = `${row.ano}-${row.mes}-${row.tipo}-${row.documento}`;
+    if(!refMap.has(k)) refMap.set(k, row);
+  });
+
   const refRows = Array.from(refMap.values());
 
   const prodMap = new Map();
@@ -685,56 +712,60 @@ async function syncSupabase(){
 
   document.getElementById('syncStatus').textContent = 'Sincronizando...';
 
-  const res1 = await state.supabase
-    .from('refaturamento_importado')
-    .upsert(refRows, { onConflict:'mes,ano,tipo,documento' });
-
-  if(res1.error){
-    document.getElementById('syncStatus').textContent = 'Erro em refaturamento_importado: ' + res1.error.message;
-    console.error('Erro refaturamento_importado:', res1.error);
-    return;
-  }
-
-  const res2 = await state.supabase
-    .from('produtividade_usuarios')
-    .upsert(prodRows, { onConflict:'mes,ano,operador' });
-
-  if(res2.error){
-    document.getElementById('syncStatus').textContent = 'Erro em produtividade_usuarios: ' + res2.error.message;
-    console.error('Erro produtividade_usuarios:', res2.error);
-    return;
-  }
-
-  const monthRows = [];
   if(refRows.length){
-    monthRows.push({ mes: refMes, ano: refAno, tem_refaturamento: true, tem_produtividade: false });
-  }
-  if(prodRows.length){
-    const existing = monthRows.find(x => x.mes === prodMes && x.ano === prodAno);
-    if(existing) existing.tem_produtividade = true;
-    else monthRows.push({ mes: prodMes, ano: prodAno, tem_refaturamento: false, tem_produtividade: true });
-  }
+    const res1 = await state.supabase
+      .from('refaturamento_importado')
+      .upsert(refRows, { onConflict:'mes,ano,tipo,documento' });
 
-  if(monthRows.length){
-    const res3 = await state.supabase
-      .from('meses_importados')
-      .upsert(monthRows, { onConflict:'mes,ano' });
-
-    if(res3.error){
-      document.getElementById('syncStatus').textContent = 'Erro em meses_importados: ' + res3.error.message;
-      console.error('Erro meses_importados:', res3.error);
+    if(res1.error){
+      document.getElementById('syncStatus').textContent = 'Erro em refaturamento_importado: ' + res1.error.message;
+      console.error('Erro refaturamento_importado:', res1.error);
       return;
     }
   }
 
-  state.selectedMonthKey = `${refAno}-${refMes}`;
-  state.remoteMonths = Array.from(new Set([...(state.remoteMonths||[]), ...monthRows.map(x => `${x.ano}-${x.mes}`)]));
+  if(prodRows.length){
+    const res2 = await state.supabase
+      .from('produtividade_usuarios')
+      .upsert(prodRows, { onConflict:'mes,ano,operador' });
+
+    if(res2.error){
+      document.getElementById('syncStatus').textContent = 'Erro em produtividade_usuarios: ' + res2.error.message;
+      console.error('Erro produtividade_usuarios:', res2.error);
+      return;
+    }
+  }
+
+  const monthRows = [
+    { mes: refMes, ano: refAno, tem_refaturamento: refRows.length > 0, tem_produtividade: false }
+  ];
+
+  if(prodRows.length){
+    const sameMonth = refAno === prodAno && refMes === prodMes;
+    if(sameMonth){
+      monthRows[0].tem_produtividade = true;
+    }else{
+      monthRows.push({ mes: prodMes, ano: prodAno, tem_refaturamento: false, tem_produtividade: true });
+    }
+  }
+
+  const res3 = await state.supabase
+    .from('meses_importados')
+    .upsert(monthRows, { onConflict:'mes,ano' });
+
+  if(res3.error){
+    document.getElementById('syncStatus').textContent = 'Erro em meses_importados: ' + res3.error.message;
+    console.error('Erro meses_importados:', res3.error);
+    return;
+  }
+
+  state.selectedMonthKey = refKey;
+  state.remoteMonths = Array.from(new Set([...(state.remoteMonths||[]), refKey, ...(prodRows.length ? [prodKey] : [])]));
   refreshMonthViewSelect();
   saveBrowserCache();
 
   document.getElementById('syncStatus').textContent = `Sincronizado com sucesso. Ref: ${refRows.length} | Prod: ${prodRows.length}`;
 }
-
 
 
 async function fetchRemoteMonths(){
@@ -753,7 +784,6 @@ async function fetchRemoteMonths(){
   refreshMonthViewSelect();
   return state.remoteMonths;
 }
-
 
 async function loadMonthFromSupabase(monthKey){
   if (!ensureSupabaseConnected()) return false;
@@ -785,10 +815,13 @@ async function loadMonthFromSupabase(monthKey){
 
   const allRef = refData || [];
   const allProd = prodData || [];
+  const setorRows = allRef.filter(r => r.tipo === 'setor');
+  const refRows = allRef.filter(r => r.tipo === 'refaturado');
+  const subRows = allRef.filter(r => r.tipo === 'substituto');
 
   state.sheets = ['supabase'];
 
-  state.refaturados = allRef.filter(r => r.tipo === 'refaturado').map(r => ({
+  state.refaturados = refRows.map(r => ({
     dataRefaturado: '',
     tomadorRefaturado: r.cliente || '',
     refaturado: r.documento || '',
@@ -798,17 +831,17 @@ async function loadMonthFromSupabase(monthKey){
     tomadorOriginal: r.cliente || '',
     original: r.documento_original || '',
     freteOriginal: Number(r.frete_original || 0),
-    diferenca: 0,
+    diferenca: Number(r.frete_refaturado || 0) - Number(r.frete_original || 0),
     reduzido: r.reduzido || '',
     motivoBaixa: r.motivo_baixa || '',
     clientGroup: clientGroup(r.cliente || ''),
-    originalTail: tailDigits(r.documento_original || ''),
+    originalTail: (tailDigits(r.documento_original || '') || '').replace(/^0+/,'') || '0',
     debit: Number(r.debito || 0),
     userSetor: r.operador || '',
     setorLancamento: r.setor || ''
   }));
 
-  state.substitutos = allRef.filter(r => r.tipo === 'substituto').map(r => ({
+  state.substitutos = subRows.map(r => ({
     dataSubstituto: '',
     tomadorSubstituto: r.cliente || '',
     substituto: r.documento || '',
@@ -818,40 +851,37 @@ async function loadMonthFromSupabase(monthKey){
     tomadorOriginal: r.cliente || '',
     original: r.documento_original || '',
     freteOriginal: Number(r.frete_original || 0),
-    diferenca: 0,
+    diferenca: Number(r.frete_substituto || 0) - Number(r.frete_original || 0),
     reduzido: r.reduzido || '',
     motivoBaixa: r.motivo_baixa || '',
     clientGroup: clientGroup(r.cliente || ''),
-    originalTail: tailDigits(r.documento_original || ''),
-    debit: Number(r.debito || 0)
+    originalTail: (tailDigits(r.documento_original || '') || '').replace(/^0+/,'') || '0',
+    debit: 0
   }));
 
-  state.setores = allRef
-    .filter(r => r.tipo === 'refaturado')
-    .map(r => ({
-      data: '',
-      docto: r.documento || '',
-      cliente: r.cliente || '',
-      debit: Number(r.debito || 0),
-      documentos: docTokens(r.documento_original || r.documento || ''),
-      usuario: (r.operador || '').toUpperCase(),
-      setor: sectorNormalize(r.setor || r.reduzido || 'NÃO IDENTIFICADO'),
-      clientGroup: clientGroup(r.cliente || '')
-    }));
+  state.setores = setorRows.map(r => ({
+    data: '',
+    docto: r.documento || '',
+    cliente: r.cliente || '',
+    debit: Number(r.debito || 0),
+    documentos: docTokens(r.documento_original || ''),
+    usuario: r.operador || '',
+    setor: r.setor || 'NÃO IDENTIFICADO',
+    clientGroup: clientGroup(r.cliente || '')
+  }));
 
   state.prodRows = [];
   allProd.forEach(r => {
     const usuario = (r.operador || '').toUpperCase();
-    if(!usuario) return;
-    const pushes = [
-      ['ctrc', Number(r.ctrc || 0)],
-      ['manifesto', Number(r.manifesto || 0)],
-      ['ost', Number(r.ost || 0)],
-      ['nf.fat', Number(r.nf_fat || 0)]
+    const rows = [
+      { tipo:'ctrc', quantidade:Number(r.ctrc || 0) },
+      { tipo:'manifesto', quantidade:Number(r.manifesto || 0) },
+      { tipo:'ost', quantidade:Number(r.ost || 0) },
+      { tipo:'nf.fat', quantidade:Number(r.nf_fat || 0) }
     ];
-    pushes.forEach(([tipo, quantidade]) => {
-      if(quantidade > 0){
-        state.prodRows.push({ usuario, operador: usuario, tipo, quantidade });
+    rows.forEach(x => {
+      if(x.quantidade > 0){
+        state.prodRows.push({ usuario, tipo:x.tipo, quantidade:x.quantidade });
       }
     });
   });
@@ -876,19 +906,16 @@ async function loadMonthFromSupabase(monthKey){
 
   const monthSel = document.getElementById('monthViewSelect');
   if (monthSel) monthSel.value = monthKey;
-
-  // alinhar seletores visuais
-  const [y,m] = monthKey.split('-');
   const annualMonth = document.getElementById('annualMonth');
   const annualYear = document.getElementById('annualYear');
   const prodMonth = document.getElementById('prodMonth');
   const prodYear = document.getElementById('prodYear');
-  if(annualMonth) annualMonth.value = m;
-  if(annualYear) annualYear.value = y;
-  if(prodMonth) prodMonth.value = m;
-  if(prodYear) prodYear.value = y;
+  if (annualMonth) annualMonth.value = mes;
+  if (annualYear) annualYear.value = ano;
+  if (prodMonth) prodMonth.value = mes;
+  if (prodYear) prodYear.value = ano;
 
-  document.getElementById('syncStatus').textContent = `Mês ${m}/${y} carregado da Supabase. Ref: ${state.refaturados.length + state.substitutos.length} | Prod: ${state.prodRows.length}`;
+  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase. Ref: ${state.refaturados.length + state.substitutos.length} | Prod: ${state.prodRows.length}`;
 
   renderAll();
   return true;
@@ -2439,7 +2466,10 @@ function getErroPorOperadorMap(){
     if(!setor.includes('FATURAMENTO')) return;
     const u = prodNorm(s.usuario || '');
     if(!u) return;
-    map.set(u, (map.get(u) || 0) + 1);
+    if(!map.has(u)) map.set(u, { qty: 0, value: 0 });
+    const item = map.get(u);
+    item.qty += 1;
+    item.value += Number(s.debit || 0);
   });
   return map;
 }
@@ -2447,23 +2477,24 @@ function getErroPorOperadorMap(){
 function usuariosErroAggregate(){
   const errMap = getErroPorOperadorMap();
   return Array.from(errMap.entries())
-    .map(([user, qty]) => ({ user, qty, value: qty }))
-    .sort((a,b) => b.qty - a.qty || a.user.localeCompare(b.user));
+    .map(([user, data]) => ({ user, qty: data.qty, value: data.value }))
+    .sort((a,b) => b.value - a.value || b.qty - a.qty || a.user.localeCompare(b.user));
 }
 
 function aggregateProd(){
   const map = new Map();
-  TRACKED_USERS.forEach(u => map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 }));
+  TRACKED_USERS.forEach(u => map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, valorErros:0, performance:null, totalDocs:0 }));
   (state.prodRows || []).forEach(r => {
     const u = prodNorm(r.usuario); const t = normalizeDocType(r.tipo);
     if(!u || !DOC_TYPES.includes(t)) return;
-    if(!map.has(u)) map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 });
+    if(!map.has(u)) map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, valorErros:0, performance:null, totalDocs:0 });
     map.get(u)[t] = (map.get(u)[t] || 0) + Number(r.quantidade || 0);
   });
   const errMap = getErroPorOperadorMap();
-  errMap.forEach((qty,u)=>{
-    if(!map.has(u)) map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 });
-    map.get(u).erros = qty;
+  errMap.forEach((data,u)=>{
+    if(!map.has(u)) map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, valorErros:0, performance:null, totalDocs:0 });
+    map.get(u).erros = data.qty;
+    map.get(u).valorErros = data.value;
   });
   return Array.from(map.values()).map(x => {
     x.totalDocs = Number(x['ctrc']||0) + Number(x['manifesto']||0) + Number(x['nf.fat']||0) + Number(x['ost']||0);
@@ -2477,9 +2508,9 @@ function aggregateProd(){
 function renderUsuariosView(){
   const users = usuariosErroAggregate().slice(0,10);
   makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
-  makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Quantidade');
+  makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Valor');
   document.getElementById('tbodyUsuarios').innerHTML = users.length
-    ? users.map(x => `<tr><td>${esc(x.user)}</td><td>${x.qty}</td><td>${x.value}</td></tr>`).join('')
+    ? users.map(x => `<tr><td>${esc(x.user)}</td><td>${x.qty}</td><td>${fmtMoney(x.value)}</td></tr>`).join('')
     : `<tr><td colspan="3" class="center muted">Sem dados</td></tr>`;
 }
 
