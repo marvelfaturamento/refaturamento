@@ -831,13 +831,20 @@ async function loadMonthFromSupabase(monthKey){
 }
 
 async function loadLatestMonthFromSupabase(){
-  if (!ensureSupabaseConnected()) return;
+  if (!ensureSupabaseConnected()) return false;
   const keys = await fetchRemoteMonths();
-  if (!keys.length) return;
-  const last = keys.slice().sort().at(-1);
-  if (!state.selectedMonthKey) {
-    await loadMonthFromSupabase(last);
+  if (!keys.length) return false;
+
+  // Prioriza o mês já selecionado/cacheado, desde que exista na Supabase.
+  let targetKey = '';
+  if (state.selectedMonthKey && keys.includes(state.selectedMonthKey)) {
+    targetKey = state.selectedMonthKey;
+  } else {
+    targetKey = keys.slice().sort().at(-1) || '';
   }
+
+  if (!targetKey) return false;
+  return await loadMonthFromSupabase(targetKey);
 }
 
 function esc(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -2341,7 +2348,7 @@ function bootstrap(){
   if(sel) sel.value = state.selectedMonthKey || '';
   renderAll();
 }
-window.addEventListener('DOMContentLoaded', function(){
+window.addEventListener('DOMContentLoaded', async function(){
   bindMenu();
   bindFilters();
   bindManualSave();
@@ -2349,7 +2356,13 @@ window.addEventListener('DOMContentLoaded', function(){
   bindExcelImport();
   bindProdExcelImport();
   bootstrap();
-  loadLatestMonthFromSupabase().catch(console.error);
+
+  // A Supabase é a fonte de verdade ao reabrir a página.
+  try{
+    await loadLatestMonthFromSupabase();
+  }catch(err){
+    console.error(err);
+  }
 });
 
 
