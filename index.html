@@ -709,7 +709,135 @@ async function syncSupabase(){
   }
 
   document.getElementById('syncStatus').textContent = `Sincronizado com sucesso. Ref: ${refRows.length} | Prod: ${prodRows.length}`;
+  state.remoteMonths = Array.from(new Set([...(state.remoteMonths||[]), key]));
+  refreshMonthViewSelect();
   saveBrowserCache();
+}
+
+
+async function fetchRemoteMonths(){
+  if (!ensureSupabaseConnected()) return [];
+  const { data, error } = await state.supabase
+    .from('meses_importados')
+    .select('mes,ano')
+    .order('ano', { ascending: true })
+    .order('mes', { ascending: true });
+  if (error) {
+    console.error('Erro carregando meses_importados:', error);
+    return [];
+  }
+  const keys = (data || []).map(r => `${r.ano}-${String(r.mes).padStart(2,'0')}`);
+  state.remoteMonths = Array.from(new Set(keys));
+  refreshMonthViewSelect();
+  return state.remoteMonths;
+}
+
+async function loadMonthFromSupabase(monthKey){
+  if (!ensureSupabaseConnected()) return false;
+  if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) return false;
+
+  const [ano, mes] = monthKey.split('-');
+
+  const { data: refData, error: refError } = await state.supabase
+    .from('refaturamento_importado')
+    .select('*')
+    .eq('ano', ano)
+    .eq('mes', mes);
+  if (refError) {
+    console.error('Erro carregando refaturamento_importado:', refError);
+    document.getElementById('syncStatus').textContent = 'Erro ao carregar refaturamento: ' + refError.message;
+    return false;
+  }
+
+  const { data: prodData, error: prodError } = await state.supabase
+    .from('produtividade_usuarios')
+    .select('*')
+    .eq('ano', ano)
+    .eq('mes', mes);
+  if (prodError) {
+    console.error('Erro carregando produtividade_usuarios:', prodError);
+    document.getElementById('syncStatus').textContent = 'Erro ao carregar produtividade: ' + prodError.message;
+    return false;
+  }
+
+  state.refaturados = (refData || []).filter(r => r.tipo === 'refaturado').map(r => ({
+    refaturado: r.documento || '',
+    original: r.documento_original || '',
+    setorLancamento: r.setor || '',
+    reduzido: r.reduzido || '',
+    tomadorRefaturado: r.cliente || '',
+    userSetor: r.operador || '',
+    operadorOriginal: r.operador || '',
+    debit: Number(r.debito || 0),
+    freteOriginal: Number(r.frete_original || 0),
+    freteRefaturado: Number(r.frete_refaturado || 0),
+    motivoBaixa: r.motivo_baixa || '',
+    dataRefaturado: '',
+    clientGroup: clientGroup(r.cliente || '')
+  }));
+
+  state.substitutos = (refData || []).filter(r => r.tipo === 'substituto').map(r => ({
+    substituto: r.documento || '',
+    original: r.documento_original || '',
+    reduzido: r.reduzido || '',
+    tomadorSubstituto: r.cliente || '',
+    operadorOriginal: r.operador || '',
+    freteOriginal: Number(r.frete_original || 0),
+    freteSubstituto: Number(r.frete_substituto || 0),
+    motivoBaixa: r.motivo_baixa || '',
+    clientGroup: clientGroup(r.cliente || '')
+  }));
+
+  // Rebuild minimal setor rows from imported data so monthly charts keep working after F5
+  const setorRows = [];
+  state.refaturados.forEach(r => {
+    const setor = sectorNormalize(r.setorLancamento || r.reduzido || '');
+    if (!setor || setor === 'NÃO IDENTIFICADO') return;
+    setorRows.push({
+      data: '',
+      docto: r.refaturado || '',
+      cliente: r.tomadorRefaturado || '',
+      debit: Number(r.debit || 0),
+      documentos: docTokens(r.original || r.refaturado || ''),
+      usuario: r.userSetor || r.operadorOriginal || '',
+      setor,
+      clientGroup: clientGroup(r.tomadorRefaturado || '')
+    });
+  });
+  state.setores = setorRows;
+
+  state.prodRows = [];
+  (prodData || []).forEach(r => {
+    const operador = r.operador || '';
+    const pushIf = (tipo, qtd) => {
+      qtd = Number(qtd || 0);
+      if (qtd > 0) state.prodRows.push({ operador, usuario: operador, tipo, quantidade: qtd, nf_fat: tipo === 'nf.fat' ? qtd : 0, ctrc: tipo==='ctrc'?qtd:0, manifesto: tipo==='manifesto'?qtd:0, ost: tipo==='ost'?qtd:0 });
+    };
+    pushIf('ctrc', r.ctrc);
+    pushIf('manifesto', r.manifesto);
+    pushIf('ost', r.ost);
+    pushIf('nf.fat', r.nf_fat);
+  });
+
+  state.selectedMonthKey = monthKey;
+  state.live = snapshotCurrentState();
+  saveBrowserCache();
+  await fetchRemoteMonths();
+
+  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase. Ref: ${state.refaturados.length + state.substitutos.length} | Prod: ${prodData ? prodData.length : 0}`;
+
+  renderAll();
+  return true;
+}
+
+async function loadLatestMonthFromSupabase(){
+  if (!ensureSupabaseConnected()) return;
+  const keys = await fetchRemoteMonths();
+  if (!keys.length) return;
+  const last = keys.slice().sort().at(-1);
+  if (!state.selectedMonthKey) {
+    await loadMonthFromSupabase(last);
+  }
 }
 
 function esc(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -2356,4 +2484,3 @@ function renderPerformanceView(){
 </script>
 </body>
 </html>
-
