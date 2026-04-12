@@ -780,7 +780,7 @@ async function loadMonthFromSupabase(monthKey){
     reduzido: r.reduzido || '',
     motivoBaixa: r.motivo_baixa || '',
     clientGroup: clientGroup(r.cliente || ''),
-    originalTail: tailDoc(r.documento_original || ''),
+    originalTail: String(r.documento_original || '').slice(-6),
     debit: Number(r.debito || 0),
     userSetor: r.operador || '',
     setorLancamento: r.setor || ''
@@ -800,7 +800,7 @@ async function loadMonthFromSupabase(monthKey){
     reduzido: r.reduzido || '',
     motivoBaixa: r.motivo_baixa || '',
     clientGroup: clientGroup(r.cliente || ''),
-    originalTail: tailDoc(r.documento_original || ''),
+    originalTail:String(r.documento_original || '').slice(-6),
     debit: Number(r.debito || 0)
   }));
 
