@@ -760,71 +760,93 @@ async function loadMonthFromSupabase(monthKey){
     return false;
   }
 
-  state.refaturados = (refData || []).filter(r => r.tipo === 'refaturado').map(r => ({
-    refaturado: r.documento || '',
-    original: r.documento_original || '',
-    setorLancamento: r.setor || '',
-    reduzido: r.reduzido || '',
-    tomadorRefaturado: r.cliente || '',
-    userSetor: r.operador || '',
-    operadorOriginal: r.operador || '',
-    debit: Number(r.debito || 0),
-    freteOriginal: Number(r.frete_original || 0),
-    freteRefaturado: Number(r.frete_refaturado || 0),
-    motivoBaixa: r.motivo_baixa || '',
+  const allRef = refData || [];
+  const allProd = prodData || [];
+
+  // marca como carregado para o dashboard não exibir "Nenhum arquivo importado ainda"
+  state.sheets = ['supabase'];
+
+  state.refaturados = allRef.filter(r => r.tipo === 'refaturado').map(r => ({
     dataRefaturado: '',
-    clientGroup: clientGroup(r.cliente || '')
-  }));
-
-  state.substitutos = (refData || []).filter(r => r.tipo === 'substituto').map(r => ({
-    substituto: r.documento || '',
-    original: r.documento_original || '',
-    reduzido: r.reduzido || '',
-    tomadorSubstituto: r.cliente || '',
+    tomadorRefaturado: r.cliente || '',
+    refaturado: r.documento || '',
+    freteRefaturado: Number(r.frete_refaturado || 0),
+    dataOriginal: '',
     operadorOriginal: r.operador || '',
+    tomadorOriginal: r.cliente || '',
+    original: r.documento_original || '',
     freteOriginal: Number(r.frete_original || 0),
-    freteSubstituto: Number(r.frete_substituto || 0),
+    diferenca: 0,
+    reduzido: r.reduzido || '',
     motivoBaixa: r.motivo_baixa || '',
+    clientGroup: clientGroup(r.cliente || ''),
+    originalTail: tailDoc(r.documento_original || ''),
+    debit: Number(r.debito || 0),
+    userSetor: r.operador || '',
+    setorLancamento: r.setor || ''
+  }));
+
+  state.substitutos = allRef.filter(r => r.tipo === 'substituto').map(r => ({
+    dataSubstituto: '',
+    tomadorSubstituto: r.cliente || '',
+    substituto: r.documento || '',
+    freteSubstituto: Number(r.frete_substituto || 0),
+    dataOriginal: '',
+    operadorOriginal: r.operador || '',
+    tomadorOriginal: r.cliente || '',
+    original: r.documento_original || '',
+    freteOriginal: Number(r.frete_original || 0),
+    diferenca: 0,
+    reduzido: r.reduzido || '',
+    motivoBaixa: r.motivo_baixa || '',
+    clientGroup: clientGroup(r.cliente || ''),
+    originalTail: tailDoc(r.documento_original || ''),
+    debit: Number(r.debito || 0)
+  }));
+
+  state.setores = allRef.map(r => ({
+    data: '',
+    docto: r.documento || '',
+    cliente: r.cliente || '',
+    debit: Number(r.debito || 0),
+    documentos: docTokens(r.documento_original || r.documento || ''),
+    usuario: r.operador || '',
+    setor: r.setor || r.reduzido || 'NÃO IDENTIFICADO',
     clientGroup: clientGroup(r.cliente || '')
   }));
 
-  // Rebuild minimal setor rows from imported data so monthly charts keep working after F5
-  const setorRows = [];
-  state.refaturados.forEach(r => {
-    const setor = sectorNormalize(r.setorLancamento || r.reduzido || '');
-    if (!setor || setor === 'NÃO IDENTIFICADO') return;
-    setorRows.push({
-      data: '',
-      docto: r.refaturado || '',
-      cliente: r.tomadorRefaturado || '',
-      debit: Number(r.debit || 0),
-      documentos: docTokens(r.original || r.refaturado || ''),
-      usuario: r.userSetor || r.operadorOriginal || '',
-      setor,
-      clientGroup: clientGroup(r.tomadorRefaturado || '')
-    });
-  });
-  state.setores = setorRows;
-
-  state.prodRows = [];
-  (prodData || []).forEach(r => {
-    const operador = r.operador || '';
-    const pushIf = (tipo, qtd) => {
-      qtd = Number(qtd || 0);
-      if (qtd > 0) state.prodRows.push({ operador, usuario: operador, tipo, quantidade: qtd, nf_fat: tipo === 'nf.fat' ? qtd : 0, ctrc: tipo==='ctrc'?qtd:0, manifesto: tipo==='manifesto'?qtd:0, ost: tipo==='ost'?qtd:0 });
-    };
-    pushIf('ctrc', r.ctrc);
-    pushIf('manifesto', r.manifesto);
-    pushIf('ost', r.ost);
-    pushIf('nf.fat', r.nf_fat);
-  });
+  state.prodRows = allProd.map(r => ({
+    operador: (r.operador || '').toUpperCase(),
+    usuario: (r.operador || '').toUpperCase(),
+    ctrc: Number(r.ctrc || 0),
+    manifesto: Number(r.manifesto || 0),
+    ost: Number(r.ost || 0),
+    nf_fat: Number(r.nf_fat || 0),
+    total_docs: Number(r.total_docs || 0),
+    docs_performance: Number(r.docs_performance || 0)
+  }));
 
   state.selectedMonthKey = monthKey;
   state.live = cloneMonthlySnapshot();
+
+  // guarda também dentro da base anual local para o seletor/consulta funcionar sem depender do Excel da sessão
+  state.annual = state.annual || {};
+  state.annual[monthKey] = {
+    refaturado: state.setores.reduce((s,x)=>s+Number(x.debit||0),0),
+    substituto: state.substitutos.reduce((s,x)=>s+Number(x.freteSubstituto||0),0),
+    total: 0,
+    docs: state.prodRows.reduce((s,x)=>s+Number(x.docs_performance || (Number(x.ctrc||0)+Number(x.ost||0))),0),
+    snapshot: cloneMonthlySnapshot()
+  };
+  state.annual[monthKey].total = state.annual[monthKey].refaturado + state.annual[monthKey].substituto;
+
   saveBrowserCache();
   await fetchRemoteMonths();
 
-  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase. Ref: ${state.refaturados.length + state.substitutos.length} | Prod: ${prodData ? prodData.length : 0}`;
+  const monthSel = document.getElementById('monthViewSelect');
+  if (monthSel) monthSel.value = monthKey;
+
+  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase. Ref: ${state.refaturados.length + state.substitutos.length} | Prod: ${state.prodRows.length}`;
 
   renderAll();
   return true;
