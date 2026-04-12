@@ -575,26 +575,24 @@ function connectSupabase(){
   }
   document.getElementById('syncStatus').textContent = 'Supabase pronta para sincronizar.';
 }
+
 async function syncSupabase(){
   if(!ensureSupabaseConnected()){
     alert('Configure a Supabase no HTML primeiro.');
     return;
   }
 
-  const refYear = String(document.getElementById('annualYear')?.value || new Date().getFullYear());
-  const refMonth = String(document.getElementById('annualMonth')?.value || '').padStart(2,'0');
-  const prodYear = String(document.getElementById('prodYear')?.value || refYear);
-  const prodMonth = String(document.getElementById('prodMonth')?.value || refMonth).padStart(2,'0');
+  const refAno = String(document.getElementById('annualYear')?.value || '').trim();
+  const refMes = String(document.getElementById('annualMonth')?.value || '').padStart(2,'0');
+  const prodAno = String(document.getElementById('prodYear')?.value || refAno).trim();
+  const prodMes = String(document.getElementById('prodMonth')?.value || refMes).padStart(2,'0');
 
-  const refKey = `${refYear}-${refMonth}`;
-  const prodKey = `${prodYear}-${prodMonth}`;
-
-  if(!/^\d{4}-\d{2}$/.test(refKey)){
-    alert('Selecione mês e ano válidos para Refaturamento.');
+  if(!/^\d{4}$/.test(refAno) || !/^\d{2}$/.test(refMes)){
+    alert('Selecione mês/ano do refaturamento antes de sincronizar.');
     return;
   }
-  if((state.prodRows || []).length && !/^\d{4}-\d{2}$/.test(prodKey)){
-    alert('Selecione mês e ano válidos para Produtividade.');
+  if(!/^\d{4}$/.test(prodAno) || !/^\d{2}$/.test(prodMes)){
+    alert('Selecione mês/ano da produtividade antes de sincronizar.');
     return;
   }
 
@@ -603,8 +601,8 @@ async function syncSupabase(){
     const documento = String(r.refaturado || '').trim();
     if(!documento) return;
     const row = {
-      mes: refMonth,
-      ano: refYear,
+      mes: refMes,
+      ano: refAno,
       tipo: 'refaturado',
       documento,
       documento_original: String(r.original || '').trim(),
@@ -620,15 +618,15 @@ async function syncSupabase(){
       motivo_baixa: String(r.motivoBaixa || '').trim()
     };
     const k = `${row.ano}-${row.mes}-${row.tipo}-${row.documento}`;
-    refMap.set(k, row);
+    if(!refMap.has(k)) refMap.set(k, row);
   });
 
   (state.substitutos || []).forEach(r => {
     const documento = String(r.substituto || '').trim();
     if(!documento) return;
     const row = {
-      mes: refMonth,
-      ano: refYear,
+      mes: refMes,
+      ano: refAno,
       tipo: 'substituto',
       documento,
       documento_original: String(r.original || '').trim(),
@@ -644,7 +642,7 @@ async function syncSupabase(){
       motivo_baixa: String(r.motivoBaixa || '').trim()
     };
     const k = `${row.ano}-${row.mes}-${row.tipo}-${row.documento}`;
-    refMap.set(k, row);
+    if(!refMap.has(k)) refMap.set(k, row);
   });
 
   const refRows = Array.from(refMap.values());
@@ -653,22 +651,16 @@ async function syncSupabase(){
   (state.prodRows || []).forEach(r => {
     const operador = String(r.usuario || r.operador || '').trim().toUpperCase();
     if(!operador) return;
+    const tipo = normalizeDocType(r.tipo || r.tipo_doc || '');
+    if(!tipo) return;
+    const qtd = Number(r.quantidade || 0);
+    if(!Number.isFinite(qtd) || qtd <= 0) return;
 
-    const docs = [];
-    if(typeof r.tipo !== 'undefined'){
-      docs.push([normalizeDocType(r.tipo || r.tipo_doc || ''), Number(r.quantidade || 0)]);
-    }else{
-      docs.push(['ctrc', Number(r.ctrc || 0)]);
-      docs.push(['manifesto', Number(r.manifesto || 0)]);
-      docs.push(['ost', Number(r.ost || 0)]);
-      docs.push(['nf.fat', Number(r.nf_fat || r.nf || 0)]);
-    }
-
-    const k = `${prodYear}-${prodMonth}-${operador}`;
+    const k = `${prodAno}-${prodMes}-${operador}`;
     if(!prodMap.has(k)){
       prodMap.set(k, {
-        mes: prodMonth,
-        ano: prodYear,
+        mes: prodMes,
+        ano: prodAno,
         operador,
         ctrc: 0,
         manifesto: 0,
@@ -680,13 +672,10 @@ async function syncSupabase(){
     }
 
     const row = prodMap.get(k);
-    docs.forEach(([tipo, qtd]) => {
-      if(!tipo || !Number.isFinite(qtd) || qtd <= 0) return;
-      if(tipo === 'ctrc') row.ctrc += qtd;
-      else if(tipo === 'manifesto') row.manifesto += qtd;
-      else if(tipo === 'ost') row.ost += qtd;
-      else if(tipo === 'nf.fat') row.nf_fat += qtd;
-    });
+    if(tipo === 'ctrc') row.ctrc += qtd;
+    else if(tipo === 'manifesto') row.manifesto += qtd;
+    else if(tipo === 'ost') row.ost += qtd;
+    else if(tipo === 'nf.fat') row.nf_fat += qtd;
 
     row.total_docs = row.ctrc + row.manifesto + row.ost + row.nf_fat;
     row.docs_performance = row.ctrc + row.ost;
@@ -696,59 +685,56 @@ async function syncSupabase(){
 
   document.getElementById('syncStatus').textContent = 'Sincronizando...';
 
-  if(refRows.length){
-    const res1 = await state.supabase
-      .from('refaturamento_importado')
-      .upsert(refRows, { onConflict:'mes,ano,tipo,documento' });
+  const res1 = await state.supabase
+    .from('refaturamento_importado')
+    .upsert(refRows, { onConflict:'mes,ano,tipo,documento' });
 
-    if(res1.error){
-      document.getElementById('syncStatus').textContent = 'Erro em refaturamento_importado: ' + res1.error.message;
-      console.error('Erro refaturamento_importado:', res1.error);
-      return;
-    }
-  }
-
-  if(prodRows.length){
-    const res2 = await state.supabase
-      .from('produtividade_usuarios')
-      .upsert(prodRows, { onConflict:'mes,ano,operador' });
-
-    if(res2.error){
-      document.getElementById('syncStatus').textContent = 'Erro em produtividade_usuarios: ' + res2.error.message;
-      console.error('Erro produtividade_usuarios:', res2.error);
-      return;
-    }
-  }
-
-  const monthRowsMap = new Map();
-  monthRowsMap.set(refKey, { mes: refMonth, ano: refYear, tem_refaturamento: refRows.length > 0, tem_produtividade: false });
-  if(prodRows.length){
-    const row = monthRowsMap.get(prodKey) || { mes: prodMonth, ano: prodYear, tem_refaturamento: false, tem_produtividade: false };
-    row.tem_produtividade = true;
-    monthRowsMap.set(prodKey, row);
-  }
-
-  const monthRows = Array.from(monthRowsMap.values());
-  const res3 = await state.supabase
-    .from('meses_importados')
-    .upsert(monthRows, { onConflict:'mes,ano' });
-
-  if(res3.error){
-    document.getElementById('syncStatus').textContent = 'Erro em meses_importados: ' + res3.error.message;
-    console.error('Erro meses_importados:', res3.error);
+  if(res1.error){
+    document.getElementById('syncStatus').textContent = 'Erro em refaturamento_importado: ' + res1.error.message;
+    console.error('Erro refaturamento_importado:', res1.error);
     return;
   }
 
-  state.selectedMonthKey = refKey;
-  state.live = cloneMonthlySnapshot();
-  state.remoteMonths = Array.from(new Set([...(state.remoteMonths || []), ...monthRows.map(x => `${x.ano}-${x.mes}`)]));
+  const res2 = await state.supabase
+    .from('produtividade_usuarios')
+    .upsert(prodRows, { onConflict:'mes,ano,operador' });
+
+  if(res2.error){
+    document.getElementById('syncStatus').textContent = 'Erro em produtividade_usuarios: ' + res2.error.message;
+    console.error('Erro produtividade_usuarios:', res2.error);
+    return;
+  }
+
+  const monthRows = [];
+  if(refRows.length){
+    monthRows.push({ mes: refMes, ano: refAno, tem_refaturamento: true, tem_produtividade: false });
+  }
+  if(prodRows.length){
+    const existing = monthRows.find(x => x.mes === prodMes && x.ano === prodAno);
+    if(existing) existing.tem_produtividade = true;
+    else monthRows.push({ mes: prodMes, ano: prodAno, tem_refaturamento: false, tem_produtividade: true });
+  }
+
+  if(monthRows.length){
+    const res3 = await state.supabase
+      .from('meses_importados')
+      .upsert(monthRows, { onConflict:'mes,ano' });
+
+    if(res3.error){
+      document.getElementById('syncStatus').textContent = 'Erro em meses_importados: ' + res3.error.message;
+      console.error('Erro meses_importados:', res3.error);
+      return;
+    }
+  }
+
+  state.selectedMonthKey = `${refAno}-${refMes}`;
+  state.remoteMonths = Array.from(new Set([...(state.remoteMonths||[]), ...monthRows.map(x => `${x.ano}-${x.mes}`)]));
   refreshMonthViewSelect();
-  const monthSel = document.getElementById('monthViewSelect');
-  if(monthSel) monthSel.value = refKey;
   saveBrowserCache();
 
   document.getElementById('syncStatus').textContent = `Sincronizado com sucesso. Ref: ${refRows.length} | Prod: ${prodRows.length}`;
 }
+
 
 
 async function fetchRemoteMonths(){
@@ -767,6 +753,7 @@ async function fetchRemoteMonths(){
   refreshMonthViewSelect();
   return state.remoteMonths;
 }
+
 
 async function loadMonthFromSupabase(monthKey){
   if (!ensureSupabaseConnected()) return false;
@@ -799,7 +786,7 @@ async function loadMonthFromSupabase(monthKey){
   const allRef = refData || [];
   const allProd = prodData || [];
 
-  state.sheets = allRef.length || allProd.length ? ['supabase'] : [];
+  state.sheets = ['supabase'];
 
   state.refaturados = allRef.filter(r => r.tipo === 'refaturado').map(r => ({
     dataRefaturado: '',
@@ -815,7 +802,7 @@ async function loadMonthFromSupabase(monthKey){
     reduzido: r.reduzido || '',
     motivoBaixa: r.motivo_baixa || '',
     clientGroup: clientGroup(r.cliente || ''),
-    originalTail: String(r.documento_original || '').slice(-6),
+    originalTail: tailDigits(r.documento_original || ''),
     debit: Number(r.debito || 0),
     userSetor: r.operador || '',
     setorLancamento: r.setor || ''
@@ -835,50 +822,34 @@ async function loadMonthFromSupabase(monthKey){
     reduzido: r.reduzido || '',
     motivoBaixa: r.motivo_baixa || '',
     clientGroup: clientGroup(r.cliente || ''),
-    originalTail: String(r.documento_original || '').slice(-6),
+    originalTail: tailDigits(r.documento_original || ''),
     debit: Number(r.debito || 0)
   }));
 
-  state.setores = [];
-  state.refaturados.forEach(r => {
-    state.setores.push({
+  state.setores = allRef
+    .filter(r => r.tipo === 'refaturado')
+    .map(r => ({
       data: '',
-      docto: r.refaturado || '',
-      cliente: r.tomadorRefaturado || '',
-      debit: Number(r.debit || 0),
-      documentos: docTokens(r.original || r.refaturado || ''),
-      usuario: r.userSetor || r.operadorOriginal || '',
-      setor: r.setorLancamento || sectorNormalize(r.reduzido || ''),
-      clientGroup: r.clientGroup || clientGroup(r.tomadorRefaturado || '')
-    });
-  });
-
-  state.substitutos.forEach(r => {
-    const sectors = parseReducedSectors(r.reduzido || '');
-    const targets = sectors.length ? sectors : [sectorNormalize(r.reduzido || '')];
-    targets.forEach(setor => {
-      state.setores.push({
-        data: '',
-        docto: r.substituto || '',
-        cliente: r.tomadorSubstituto || '',
-        debit: 0,
-        documentos: docTokens(r.original || r.substituto || ''),
-        usuario: r.operadorOriginal || '',
-        setor: setor || 'NÃO IDENTIFICADO',
-        clientGroup: r.clientGroup || clientGroup(r.tomadorSubstituto || '')
-      });
-    });
-  });
+      docto: r.documento || '',
+      cliente: r.cliente || '',
+      debit: Number(r.debito || 0),
+      documentos: docTokens(r.documento_original || r.documento || ''),
+      usuario: (r.operador || '').toUpperCase(),
+      setor: sectorNormalize(r.setor || r.reduzido || 'NÃO IDENTIFICADO'),
+      clientGroup: clientGroup(r.cliente || '')
+    }));
 
   state.prodRows = [];
   allProd.forEach(r => {
     const usuario = (r.operador || '').toUpperCase();
-    [
+    if(!usuario) return;
+    const pushes = [
       ['ctrc', Number(r.ctrc || 0)],
       ['manifesto', Number(r.manifesto || 0)],
       ['ost', Number(r.ost || 0)],
       ['nf.fat', Number(r.nf_fat || 0)]
-    ].forEach(([tipo, quantidade]) => {
+    ];
+    pushes.forEach(([tipo, quantidade]) => {
       if(quantidade > 0){
         state.prodRows.push({ usuario, operador: usuario, tipo, quantidade });
       }
@@ -890,34 +861,39 @@ async function loadMonthFromSupabase(monthKey){
 
   state.annual = state.annual || {};
   state.annual[monthKey] = { ...currentAnnualSummary(), snapshot: cloneMonthlySnapshot() };
-  writeStorage('painel_ref_annual_v30', state.annual);
 
   const docs = (state.prodRows || [])
     .filter(x => ['ctrc','ost'].includes(normalizeDocType(x.tipo)))
     .reduce((s,x)=>s+Number(x.quantidade||0),0);
   state.annualProd = state.annualProd || {};
   state.annualProd[monthKey] = { documentos: docs, rows: JSON.parse(JSON.stringify(state.prodRows || [])) };
+
+  writeStorage('painel_ref_annual_v30', state.annual);
   writeStorage('painel_ref_annual_prod_v34', state.annualProd);
 
   saveBrowserCache();
   await fetchRemoteMonths();
 
   const monthSel = document.getElementById('monthViewSelect');
-  if(monthSel) monthSel.value = monthKey;
+  if (monthSel) monthSel.value = monthKey;
+
+  // alinhar seletores visuais
+  const [y,m] = monthKey.split('-');
   const annualMonth = document.getElementById('annualMonth');
   const annualYear = document.getElementById('annualYear');
-  if(annualMonth) annualMonth.value = mes;
-  if(annualYear) annualYear.value = ano;
   const prodMonth = document.getElementById('prodMonth');
   const prodYear = document.getElementById('prodYear');
-  if(prodMonth) prodMonth.value = mes;
-  if(prodYear) prodYear.value = ano;
+  if(annualMonth) annualMonth.value = m;
+  if(annualYear) annualYear.value = y;
+  if(prodMonth) prodMonth.value = m;
+  if(prodYear) prodYear.value = y;
 
-  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase. Ref: ${state.refaturados.length + state.substitutos.length} | Prod: ${state.prodRows.length}`;
+  document.getElementById('syncStatus').textContent = `Mês ${m}/${y} carregado da Supabase. Ref: ${state.refaturados.length + state.substitutos.length} | Prod: ${state.prodRows.length}`;
 
   renderAll();
   return true;
 }
+
 
 async function loadLatestMonthFromSupabase(){
   if (!ensureSupabaseConnected()) return false;
@@ -1631,7 +1607,6 @@ function saveCurrentMonthToAnnual(){
   const month = document.getElementById('annualMonth').value;
   const year = document.getElementById('annualYear').value || new Date().getFullYear();
   const key = `${year}-${month}`;
-  state.selectedMonthKey = key;
   state.annual[key] = { ...currentAnnualSummary(), snapshot: cloneMonthlySnapshot() };
   writeStorage('painel_ref_annual_v30', state.annual);
   refreshMonthViewSelect();
@@ -1645,7 +1620,6 @@ function saveCurrentProdMonth(){
   const month = document.getElementById('prodMonth').value;
   const year = document.getElementById('prodYear').value || new Date().getFullYear();
   const key = `${year}-${month}`;
-  if(!state.selectedMonthKey) state.selectedMonthKey = key;
   const docs = (state.prodRows || []).filter(x => ['ctrc','ost'].includes(normalizeDocType(x.tipo))).reduce((s,x)=>s+Number(x.quantidade||0),0);
   state.annualProd[key] = { documentos: docs, rows: JSON.parse(JSON.stringify(state.prodRows || [])) };
   writeStorage('painel_ref_annual_prod_v34', state.annualProd);
@@ -2022,7 +1996,6 @@ function saveCurrentMonthToAnnual(){
   const month = document.getElementById('annualMonth').value;
   const year = document.getElementById('annualYear').value || new Date().getFullYear();
   const key = `${year}-${month}`;
-  state.selectedMonthKey = key;
   state.annual[key] = { ...currentAnnualSummary(), snapshot: cloneMonthlySnapshot() };
   writeStorage('painel_ref_annual_v30', state.annual);
   refreshMonthViewSelect();
@@ -2036,7 +2009,6 @@ function saveCurrentProdMonth(){
   const month = document.getElementById('prodMonth').value;
   const year = document.getElementById('prodYear').value || new Date().getFullYear();
   const key = `${year}-${month}`;
-  if(!state.selectedMonthKey) state.selectedMonthKey = key;
   const docs = (state.prodRows || []).filter(x => ['ctrc','ost'].includes(normalizeDocType(x.tipo))).reduce((s,x)=>s+Number(x.quantidade||0),0);
   state.annualProd[key] = { documentos: docs, rows: JSON.parse(JSON.stringify(state.prodRows || [])) };
   writeStorage('painel_ref_annual_prod_v34', state.annualProd);
