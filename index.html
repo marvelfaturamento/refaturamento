@@ -820,7 +820,7 @@ async function loadMonthFromSupabase(monthKey){
   });
 
   state.selectedMonthKey = monthKey;
-  state.live = snapshotCurrentState();
+  state.live = cloneMonthlySnapshot();
   saveBrowserCache();
   await fetchRemoteMonths();
 
