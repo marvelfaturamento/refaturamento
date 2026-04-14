@@ -154,15 +154,43 @@
     </section>
 
     <section id="usuarios" class="view">
-      <div class="grid grid-2">
-        <div class="card"><h3>Usuários que mais cometem erro</h3><div class="sub">Somente setor Faturamento.</div><div class="chart-box"><canvas id="chartUsuariosErroQtd"></canvas></div></div>
-        <div class="card"><h3>Usuários que mais cometem erro por valor</h3><div class="sub">Somente setor Faturamento, usando débito.</div><div class="chart-box"><canvas id="chartUsuariosErroValor"></canvas></div></div>
+  <div class="grid grid-2">
+    <div class="card"><h3>Usuários que mais cometem erro</h3><div class="sub">Somente setor Faturamento.</div><div class="chart-box"><canvas id="chartUsuariosErroQtd"></canvas></div></div>
+    <div class="card"><h3>Usuários que mais cometem erro por valor</h3><div class="sub">Somente setor Faturamento, usando débito.</div><div class="chart-box"><canvas id="chartUsuariosErroValor"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <h3>Tabela de usuários</h3>
+    <div class="table-wrap"><table><thead><tr><th>Usuário</th><th>Qtd. erros</th><th>Valor em erro</th></tr></thead><tbody id="tbodyUsuarios"></tbody></table></div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+      <div>
+        <h3>Motivos por usuário</h3>
+        <div class="sub">Selecione um usuário para ver os motivos ligados aos CTEs com erro no faturamento.</div>
       </div>
-      <div class="card" style="margin-top:16px;">
-        <h3>Tabela de usuários</h3>
-        <div class="table-wrap"><table><thead><tr><th>Usuário</th><th>Qtd. erros</th><th>Valor em erro</th></tr></thead><tbody id="tbodyUsuarios"></tbody></table></div>
+      <div class="field" style="max-width:260px; min-width:180px;">
+        <label>Usuário</label>
+        <select id="usuariosReasonSelect"></select>
       </div>
-    </section>
+    </div>
+    <div class="grid grid-2" style="margin-top:12px;">
+      <div class="card" style="padding:14px;">
+        <h3 style="font-size:18px;">Motivos por quantidade</h3>
+        <div class="chart-box"><canvas id="chartUsuarioMotivosQtd"></canvas></div>
+      </div>
+      <div class="card" style="padding:14px;">
+        <h3 style="font-size:18px;">Motivos por valor</h3>
+        <div class="chart-box"><canvas id="chartUsuarioMotivosValor"></canvas></div>
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-top:16px;">
+      <table>
+        <thead><tr><th>CTE</th><th>Cliente</th><th>Usuário</th><th>Motivo</th><th>Valor em erro</th><th>Setor</th></tr></thead>
+        <tbody id="tbodyUsuariosMotivos"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
 
     <section id="clientes" class="view">
       <div class="grid grid-2">
@@ -191,6 +219,34 @@
       <div class="grid grid-2" style="margin-top:16px;">
         <div class="card"><h3>Reduzido quantitativo dos setores</h3><div class="sub">Quantidade por setor no campo reduzido.</div><div class="chart-box"><canvas id="chartReduzidoQtdSetor"></canvas></div></div>
         <div class="card"><h3>Observação</h3><div class="sub">Quando um registro tiver dois setores no campo reduzido, o valor do substituto é dividido igualmente entre eles.</div><div class="box-info">Exemplo: FATURAMENTO/COMERCIAL com valor 5.113,64 vira 2.556,82 para FATURAMENTO e 2.556,82 para COMERCIAL.</div></div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div>
+            <h3>Motivos por setor</h3>
+            <div class="sub">Selecione um setor para ver os motivos ligados aos CTEs desse setor.</div>
+          </div>
+          <div class="field" style="max-width:260px; min-width:180px;">
+            <label>Setor</label>
+            <select id="setorReasonSelect"></select>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-top:12px;">
+          <div class="card" style="padding:14px;">
+            <h3 style="font-size:18px;">Motivos por quantidade</h3>
+            <div class="chart-box"><canvas id="chartSetorMotivosQtd"></canvas></div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <h3 style="font-size:18px;">Motivos por valor</h3>
+            <div class="chart-box"><canvas id="chartSetorMotivosValor"></canvas></div>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:16px;">
+          <table>
+            <thead><tr><th>CTE</th><th>Cliente</th><th>Setor</th><th>Motivo</th><th>Valor em erro</th><th>Usuário</th></tr></thead>
+            <tbody id="tbodySetoresMotivos"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -2855,6 +2911,141 @@ function renderAnnualView(){
   }
 }
 
+</script>
+<script>
+function getUsuariosReasonDetailRows(selectedUser){
+  const rows = (state.refaturados || []).filter(r => {
+    const user = prodNorm(r.userSetor || r.operadorOriginal || '');
+    if(!user) return false;
+    const setores = new Set([
+      upper(r.setorLancamento || ''),
+      ...parseReducedSectors(r.reduzido || '').map(x => upper(x))
+    ]);
+    if(!setores.has('FATURAMENTO')) return false;
+    if(selectedUser && selectedUser !== 'TODOS' && user !== selectedUser) return false;
+    return true;
+  }).map(r => ({
+    cte: String(r.refaturado || '').trim(),
+    cliente: String(r.tomadorRefaturado || r.tomadorOriginal || '').trim(),
+    usuario: prodNorm(r.userSetor || r.operadorOriginal || ''),
+    motivo: motivoFinal(r) || 'Sem preenchimento',
+    valor: Number(r.debit || 0),
+    setor: String(r.setorLancamento || r.reduzido || '').trim() || 'FATURAMENTO'
+  }));
+  rows.sort((a,b) => b.valor - a.valor || a.motivo.localeCompare(b.motivo) || a.cte.localeCompare(b.cte));
+  return rows;
+}
+
+function aggregateUserReasons(rows){
+  const map = new Map();
+  rows.forEach(r => {
+    const key = r.motivo || 'Sem preenchimento';
+    if(!map.has(key)) map.set(key, { motivo:key, qty:0, value:0 });
+    const item = map.get(key);
+    item.qty += 1;
+    item.value += Number(r.valor || 0);
+  });
+  return Array.from(map.values()).sort((a,b) => b.qty - a.qty || b.value - a.value || a.motivo.localeCompare(b.motivo));
+}
+
+function renderUsuariosView(){
+  const users = usuariosErroAggregate().slice(0,10);
+  makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
+  makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Valor');
+  document.getElementById('tbodyUsuarios').innerHTML = users.length
+    ? users.map(x => `<tr><td>${esc(x.user)}</td><td>${x.qty}</td><td>${fmtMoney(x.value)}</td></tr>`).join('')
+    : `<tr><td colspan="3" class="center muted">Sem dados</td></tr>`;
+
+  const select = document.getElementById('usuariosReasonSelect');
+  const allUsers = usuariosErroAggregate().map(x => x.user);
+  let selectedUser = 'TODOS';
+  if(select){
+    const current = select.value || 'TODOS';
+    select.innerHTML = '<option value="TODOS">Todos</option>' + allUsers.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
+    if(current !== 'TODOS' && allUsers.includes(current)) select.value = current;
+    else select.value = 'TODOS';
+    selectedUser = select.value;
+  }
+
+  const detailRows = getUsuariosReasonDetailRows(selectedUser);
+  const reasonAgg = aggregateUserReasons(detailRows).slice(0,12);
+  makeBarChart('chartUsuarioMotivosQtd', reasonAgg.map(x=>x.motivo), reasonAgg.map(x=>x.qty), true, 'Quantidade');
+  makeBarChart('chartUsuarioMotivosValor', reasonAgg.map(x=>x.motivo), reasonAgg.map(x=>x.value), true, 'Valor');
+
+  document.getElementById('tbodyUsuariosMotivos').innerHTML = detailRows.length
+    ? detailRows.map(r => `<tr><td><strong>${esc(r.cte)}</strong></td><td>${esc(r.cliente || '-')}</td><td>${esc(r.usuario)}</td><td>${esc(r.motivo)}</td><td>${fmtMoney(r.valor)}</td><td>${esc(r.setor)}</td></tr>`).join('')
+    : `<tr><td colspan="6" class="center muted">Sem dados para o usuário selecionado</td></tr>`;
+}
+
+function getSetorReasonDetailRows(selectedSetor){
+  const rows = (state.refaturados || []).flatMap(r => {
+    const setores = Array.from(new Set([
+      upper(r.setorLancamento || ''),
+      ...parseReducedSectors(r.reduzido || '').map(x => upper(x))
+    ].filter(Boolean)));
+    if(!setores.length) return [];
+    const motivo = motivoFinal(r) || 'Sem preenchimento';
+    const valorBase = Number(r.debit || 0);
+    const valorPorSetor = setores.length ? (valorBase / setores.length) : valorBase;
+    return setores
+      .filter(setor => !selectedSetor || selectedSetor === 'TODOS' || setor === selectedSetor)
+      .map(setor => ({
+        cte: String(r.refaturado || '').trim(),
+        cliente: String(r.tomadorRefaturado || r.tomadorOriginal || '').trim(),
+        setor,
+        motivo,
+        valor: valorPorSetor,
+        usuario: prodNorm(r.userSetor || r.operadorOriginal || '')
+      }));
+  });
+  rows.sort((a,b) => b.valor - a.valor || a.motivo.localeCompare(b.motivo) || a.cte.localeCompare(b.cte));
+  return rows;
+}
+
+function aggregateSetorReasons(rows){
+  const map = new Map();
+  rows.forEach(r => {
+    const key = r.motivo || 'Sem preenchimento';
+    if(!map.has(key)) map.set(key, { motivo:key, qty:0, value:0 });
+    const item = map.get(key);
+    item.qty += 1;
+    item.value += Number(r.valor || 0);
+  });
+  return Array.from(map.values()).sort((a,b) => b.qty - a.qty || b.value - a.value || a.motivo.localeCompare(b.motivo));
+}
+
+const __origRenderSetoresView = typeof renderSetoresView === 'function' ? renderSetoresView : null;
+renderSetoresView = function(){
+  if(__origRenderSetoresView) __origRenderSetoresView();
+
+  const select = document.getElementById('setorReasonSelect');
+  const setoresDisponiveis = allSectorNames().map(x => upper(x)).filter(Boolean);
+  let selectedSetor = 'TODOS';
+  if(select){
+    const current = select.value || 'TODOS';
+    select.innerHTML = '<option value="TODOS">Todos</option>' + setoresDisponiveis.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+    if(current !== 'TODOS' && setoresDisponiveis.includes(current)) select.value = current;
+    else select.value = 'TODOS';
+    selectedSetor = select.value;
+  }
+
+  const detailRows = getSetorReasonDetailRows(selectedSetor);
+  const reasonAgg = aggregateSetorReasons(detailRows).slice(0,12);
+  makeBarChart('chartSetorMotivosQtd', reasonAgg.map(x=>x.motivo), reasonAgg.map(x=>x.qty), true, 'Quantidade');
+  makeBarChart('chartSetorMotivosValor', reasonAgg.map(x=>x.motivo), reasonAgg.map(x=>x.value), true, 'Valor');
+
+  const tbody = document.getElementById('tbodySetoresMotivos');
+  if(tbody){
+    tbody.innerHTML = detailRows.length
+      ? detailRows.map(r => `<tr><td><strong>${esc(r.cte)}</strong></td><td>${esc(r.cliente || '-')}</td><td>${esc(r.setor)}</td><td>${esc(r.motivo)}</td><td>${fmtMoney(r.valor)}</td><td>${esc(r.usuario || '-')}</td></tr>`).join('')
+      : `<tr><td colspan="6" class="center muted">Sem dados para o setor selecionado</td></tr>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('usuariosReasonSelect')?.addEventListener('change', renderUsuariosView);
+  document.getElementById('setorReasonSelect')?.addEventListener('change', renderSetoresView);
+});
 </script>
 </body>
 </html>
