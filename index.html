@@ -3042,9 +3042,152 @@ renderSetoresView = function(){
   }
 }
 
+
+function exportPainelExcel(){
+  try{
+    const wb = XLSX.utils.book_new();
+    const monthLabelValue = (() => {
+      const sel = document.getElementById('monthViewSelect');
+      if(sel && sel.value) return sel.value;
+      return state.selectedMonthKey || '';
+    })();
+
+    const totalRef = (state.setores || []).reduce((s,x)=>s+Number(x.debit||0),0);
+    const totalSub = (state.substitutos || []).reduce((s,x)=>s+Number(x.freteSubstituto||0),0);
+    const totalGeral = totalRef + totalSub;
+    const badMonth = (state.refaturados || []).filter(r => classifyStatus(getManual(r.refaturado).requestDate || '', r.dataRefaturado) === 'bad').length;
+    const semSolic = (state.refaturados || []).filter(r => !getManual(r.refaturado).requestDate).length;
+
+    const dashboardRows = [
+      { indicador:'Mês consultado', valor: monthLabelValue || 'Atual' },
+      { indicador:'Abas importadas', valor: state.sheets.length },
+      { indicador:'Qtd. refaturados', valor: state.refaturados.length },
+      { indicador:'Qtd. substitutos', valor: state.substitutos.length },
+      { indicador:'Qtd. linhas setor', valor: state.setores.length },
+      { indicador:'Refaturado total', valor: totalRef },
+      { indicador:'Frete substituto total', valor: totalSub },
+      { indicador:'Valor total', valor: totalGeral },
+      { indicador:'Série 80/81 sem solicitação', valor: semSolic },
+      { indicador:'Baixas em mês diferente', valor: badMonth }
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dashboardRows), 'Dashboard');
+
+    const registrosRows = currentRowsFiltered().map(r => ({
+      tipo: r.kind,
+      cte: r.cte,
+      original: r.original || '',
+      cliente: r.client || '',
+      usuario_original: r.userSetor || r.operadorOriginal || '',
+      setor: r.setorLancamento || r.reduzido || '',
+      baixa: r.date || '',
+      debito: Number(r.debit || 0),
+      frete_original: Number(r.freteOriginal || 0),
+      frete_refaturado: Number(r.freteRefaturado || 0),
+      frete_substituto: Number(r.freteSubstituto || 0),
+      motivo: r.motivoBaixa || ''
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(registrosRows), 'Registros');
+
+    const motivosRows = motivosAggregate().map(x => ({
+      motivo: x.motivo,
+      quantidade: x.qtd,
+      valor_original: Number(x.original || 0),
+      valor_refaturado: Number(x.ref || 0),
+      valor_substituto: Number(x.sub || 0),
+      debito: Number(x.debito || 0)
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(motivosRows), 'Motivos');
+
+    const usuariosRows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0).map(x => ({
+      usuario: x.usuario,
+      ctrc: Number(x['ctrc'] || 0),
+      manifesto: Number(x['manifesto'] || 0),
+      nf_fat: Number(x['nf.fat'] || 0),
+      ost: Number(x['ost'] || 0),
+      total_docs: Number(x.totalDocs || 0),
+      erros: Number(x.erros || 0),
+      performance: x.performance == null ? '' : Number(x.performance.toFixed(2))
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(usuariosRows), 'Usuarios');
+
+    const userSelect = document.getElementById('usuariosReasonSelect');
+    const selectedUser = userSelect ? (userSelect.value || 'TODOS') : 'TODOS';
+    const usuarioMotivosRows = getUsuariosReasonDetailRows(selectedUser).map(r => ({
+      cte: r.cte,
+      cliente: r.cliente || '',
+      usuario: r.usuario || '',
+      motivo: r.motivo || '',
+      valor: Number(r.valor || 0),
+      setor: r.setor || ''
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(usuarioMotivosRows), 'Usu_Motivos');
+
+    const setoresRows = setoresAggregate().map(x => ({
+      setor: x.setor,
+      qtd_refaturados: Number(x.refQty || 0),
+      valor_refaturado: Number(x.refValue || 0),
+      qtd_substitutos: Number(x.subQty || 0),
+      valor_substituto: Number(x.subValue || 0),
+      valor_total: Number(x.totalValue || 0)
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(setoresRows), 'Setores');
+
+    const setorSelect = document.getElementById('setorReasonSelect');
+    const selectedSetor = setorSelect ? (setorSelect.value || 'TODOS') : 'TODOS';
+    const setorMotivosRows = getSetorReasonDetailRows(selectedSetor).map(r => ({
+      cte: r.cte,
+      cliente: r.cliente || '',
+      setor: r.setor || '',
+      motivo: r.motivo || '',
+      valor: Number(r.valor || 0),
+      usuario: r.usuario || ''
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(setorMotivosRows), 'Setor_Motivos');
+
+    const produtividadeRows = (state.prodRows || []).map(r => ({
+      usuario: r.usuario || '',
+      tipo: r.tipo || '',
+      quantidade: Number(r.quantidade || 0)
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(produtividadeRows), 'Produtividade');
+
+    const annualRows = Object.keys(state.annual || {}).sort().map(key => {
+      const row = state.annual[key] || {};
+      return {
+        mes: key,
+        refaturado: Number(row.refaturado || 0),
+        substituto: Number(row.substituto || 0),
+        total: Number(row.total || 0),
+        documentos: Number(row.docs || 0)
+      };
+    });
+    if(annualRows.length){
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(annualRows), 'Anual');
+    }
+
+    const safeMonth = (monthLabelValue || 'atual').replace(/[^\dA-Za-z_-]+/g, '_');
+    XLSX.writeFile(wb, `painel_refaturamento_${safeMonth}.xlsx`);
+  }catch(err){
+    console.error(err);
+    alert('Erro ao exportar Excel: ' + (err?.message || err));
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('usuariosReasonSelect')?.addEventListener('change', renderUsuariosView);
   document.getElementById('setorReasonSelect')?.addEventListener('change', renderSetoresView);
+
+  const syncBtn = document.getElementById('btnSyncSupabase');
+  const host = syncBtn?.parentElement;
+  if(host && !document.getElementById('btnExportExcel')){
+    const btn = document.createElement('button');
+    btn.className = 'btn secondary';
+    btn.id = 'btnExportExcel';
+    btn.type = 'button';
+    btn.textContent = 'Extrair Excel';
+    host.appendChild(btn);
+  }
+  document.getElementById('btnExportExcel')?.addEventListener('click', exportPainelExcel);
 });
 </script>
 </body>
