@@ -2583,13 +2583,13 @@ document.querySelectorAll("[data-view]").forEach(btn => {
 });
 
 const viewAtiva = document.querySelector(".view.active");
-if (viewAtiva && !liberadasRefaturamento.includes(viewAtiva.id)) {
-  const primeiraPermitida = liberadasRefaturamento[0];
+if (viewAtiva && !liberadas.includes(viewAtiva.id)) {
+  const primeiraPermitida = liberadas[0];
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.querySelectorAll("[data-view]").forEach(b => b.classList.remove("active"));
 
-  const viewEl = document.getElementById(primeiraPermitida);
-  const btnEl = document.querySelector(`[data-view="${primeiraPermitida}"]`);
+  const viewEl = document.getElementById(primeiraPermitida || "dashboard");
+  const btnEl = document.querySelector(`[data-view="${primeiraPermitida || "dashboard"}"]`);
 
   if (viewEl) viewEl.classList.add("active");
   if (btnEl) btnEl.classList.add("active");
