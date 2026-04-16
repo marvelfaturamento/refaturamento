@@ -425,19 +425,15 @@ create table if not exists manual (
 </div>
 
 <script>
-  const perfil = localStorage.getItem("perfil_menu");
+ const params = new URLSearchParams(window.location.search);
+const perfil = params.get("perfil");
+const usuario = params.get("usuario") || "";
 
 if (!perfil) {
   alert("Acesso não autorizado. Entre pelo menu principal.");
-  window.location.href = "https://SEU-MENU-PAI.vercel.app";
+  window.location.href = "https://menu-rho-olive.vercel.app/";
   throw new Error("Acesso bloqueado");
 }
-
-if (!perfil) {
-  alert("Acesso não autorizado. Entre pelo menu principal.");
-  window.location.href = "https://SEU-MENU-PAI.vercel.app";
-}
-Chart.register(ChartDataLabels);
 
 const DEFAULT_REASONS = [
   'valor incorreto na tabela','valor incorreto','filial incorreta','CNPJ invertido','série incorreta','pagador incorreto',
@@ -2577,11 +2573,11 @@ window.addEventListener('DOMContentLoaded', function(){
   ]
 };
 
-const liberadasRefaturamento = permissoesRefaturamento[perfil] || [];
+const liberadas = permissoesRefaturamento[perfil] || [];
 
 document.querySelectorAll("[data-view]").forEach(btn => {
   const view = btn.getAttribute("data-view");
-  if (!liberadasRefaturamento.includes(view)) {
+  if (!liberadas.includes(view)) {
     btn.style.display = "none";
   }
 });
