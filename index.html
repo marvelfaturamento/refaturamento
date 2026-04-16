@@ -425,6 +425,18 @@ create table if not exists manual (
 </div>
 
 <script>
+  const perfil = localStorage.getItem("perfil_menu");
+
+if (!perfil) {
+  alert("Acesso não autorizado. Entre pelo menu principal.");
+  window.location.href = "https://SEU-MENU-PAI.vercel.app";
+  throw new Error("Acesso bloqueado");
+}
+
+if (!perfil) {
+  alert("Acesso não autorizado. Entre pelo menu principal.");
+  window.location.href = "https://SEU-MENU-PAI.vercel.app";
+}
 Chart.register(ChartDataLabels);
 
 const DEFAULT_REASONS = [
@@ -2529,6 +2541,63 @@ window.addEventListener('DOMContentLoaded', function(){
   bindConfigActions();
   bindExcelImport();
   bindProdExcelImport();
+  const permissoesRefaturamento = {
+  admin: [
+    "dashboard",
+    "registros",
+    "conciliacao",
+    "motivos",
+    "usuarios",
+    "clientes",
+    "setores",
+    "performance",
+    "anual",
+    "cadastro",
+    "config"
+  ],
+  operacional: [
+    "dashboard",
+    "registros",
+    "conciliacao",
+    "motivos",
+    "clientes",
+    "setores",
+    "anual",
+    "cadastro",
+    "config"
+  ],
+  consulta: [
+    "dashboard",
+    "registros",
+    "conciliacao",
+    "motivos",
+    "clientes",
+    "setores",
+    "anual"
+  ]
+};
+
+const liberadasRefaturamento = permissoesRefaturamento[perfil] || [];
+
+document.querySelectorAll("[data-view]").forEach(btn => {
+  const view = btn.getAttribute("data-view");
+  if (!liberadasRefaturamento.includes(view)) {
+    btn.style.display = "none";
+  }
+});
+
+const viewAtiva = document.querySelector(".view.active");
+if (viewAtiva && !liberadasRefaturamento.includes(viewAtiva.id)) {
+  const primeiraPermitida = liberadasRefaturamento[0];
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.querySelectorAll("[data-view]").forEach(b => b.classList.remove("active"));
+
+  const viewEl = document.getElementById(primeiraPermitida);
+  const btnEl = document.querySelector(`[data-view="${primeiraPermitida}"]`);
+
+  if (viewEl) viewEl.classList.add("active");
+  if (btnEl) btnEl.classList.add("active");
+}
   bootstrap();
 });
 
