@@ -675,7 +675,8 @@ function buildRefRowsForSync(mes, ano){
       frete_refaturado: parseNumber(r.freteRefaturado || 0),
       frete_substituto: 0,
       reduzido: String(r.reduzido || '').trim(),
-      motivo_baixa: String(r.motivoBaixa || '').trim()
+      motivo_baixa: String(r.motivoBaixa || '').trim(),
+      data_baixa: String(r.dataRefaturado || '').trim()
     });
   });
   (state.substitutos || []).forEach(r => {
@@ -694,7 +695,8 @@ function buildRefRowsForSync(mes, ano){
       frete_refaturado: 0,
       frete_substituto: parseNumber(r.freteSubstituto || 0),
       reduzido: String(r.reduzido || '').trim(),
-      motivo_baixa: String(r.motivoBaixa || '').trim()
+      motivo_baixa: String(r.motivoBaixa || '').trim(),
+      data_baixa: String(r.dataSubstituto || '').trim()
     });
   });
   (state.setores || []).forEach(s => {
@@ -711,7 +713,8 @@ function buildRefRowsForSync(mes, ano){
       frete_refaturado: 0,
       frete_substituto: 0,
       reduzido: '',
-      motivo_baixa: ''
+      motivo_baixa: '',
+      data_baixa: ''
     });
   });
   return rows;
@@ -750,6 +753,7 @@ function sameRefRow(a, b){
     && normalizeRowValue(a.setor) === normalizeRowValue(b.setor)
     && normalizeRowValue(a.reduzido) === normalizeRowValue(b.reduzido)
     && normalizeRowValue(a.motivo_baixa) === normalizeRowValue(b.motivo_baixa)
+    && normalizeRowValue(a.data_baixa) === normalizeRowValue(b.data_baixa)
     && normalizeRowValue(parseNumber(a.debito || 0)) === normalizeRowValue(parseNumber(b.debito || 0))
     && normalizeRowValue(parseNumber(a.frete_refaturado || 0)) === normalizeRowValue(parseNumber(b.frete_refaturado || 0))
     && normalizeRowValue(parseNumber(a.frete_substituto || 0)) === normalizeRowValue(parseNumber(b.frete_substituto || 0))
@@ -810,7 +814,7 @@ async function loadMonthFromSupabase(monthKey){
 
   state.sheets = ['supabase'];
   state.refaturados = refRows.map(r => ({
-    dataRefaturado: '',
+    dataRefaturado: r.data_baixa || '',
     tomadorRefaturado: r.cliente || '',
     refaturado: r.documento || '',
     freteRefaturado: parseNumber(r.frete_refaturado || 0),
@@ -829,7 +833,7 @@ async function loadMonthFromSupabase(monthKey){
     setorLancamento: r.setor || ''
   }));
   state.substitutos = subRows.map(r => ({
-    dataSubstituto: '',
+    dataSubstituto: r.data_baixa || '',
     tomadorSubstituto: r.cliente || '',
     substituto: r.documento || '',
     freteSubstituto: parseNumber(r.frete_substituto || 0),
@@ -1160,24 +1164,23 @@ function toSqlDate(brDate){
   return null;
 }
 
-function toInputDate(v){
-  const s = String(v || '').trim();
-  if(!s) return '';
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if(m) return `${m[3]}-${m[2]}-${m[1]}`;
-  return '';
-}
-
 function mapManualRowFromSupabase(row){
   if(!row) return null;
   const cte = String(row.documento || row.cte || '').trim();
   if(!cte) return null;
 
+  let requestDate = '';
+  if(row.solicitacao){
+    const parts = String(row.solicitacao).split('-');
+    if(parts.length === 3){
+      requestDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+  }
+
   return {
     cte,
     payload: {
-      requestDate: row.solicitacao || '',
+      requestDate,
       reason: row.motivo || '',
       detail: row.detalhamento || '',
       audit: String(row.auditoria || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
@@ -1772,7 +1775,7 @@ function renderManualTable(){
         <td><strong>${esc(r.refaturado)}</strong></td>
         <td>${esc(r.tomadorRefaturado || '-')}</td>
         <td>${displayDate(r.dataRefaturado)}</td>
-        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(toInputDate(manual.requestDate || ''))}"></td>
+        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(manual.requestDate || '')}"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="reason">${options.replace(`value="${esc(motivo)}"`,`value="${esc(motivo)}" selected`)}</select></td>
         <td><input class="manual-input" data-cte="${esc(r.refaturado)}" data-field="detail" value="${esc(manual.detail || '')}" placeholder="Detalhar"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="audit"><option value="nao" ${manual.audit === 'nao' || !manual.audit ? 'selected' : ''}>Não</option><option value="sim" ${manual.audit === 'sim' ? 'selected' : ''}>Sim</option></select></td>
@@ -2160,7 +2163,7 @@ function renderManualTable(){
         <td><strong>${esc(r.refaturado)}</strong></td>
         <td>${esc(r.tomadorRefaturado || '-')}</td>
         <td>${displayDate(r.dataRefaturado)}</td>
-        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(toInputDate(manual.requestDate || ''))}"></td>
+        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(manual.requestDate || '')}"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="reason">${options.replace(`value="${esc(motivo)}"`,`value="${esc(motivo)}" selected`)}</select></td>
         <td><input class="manual-input" data-cte="${esc(r.refaturado)}" data-field="detail" value="${esc(manual.detail || '')}" placeholder="Detalhar"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="audit"><option value="nao" ${manual.audit === 'nao' || !manual.audit ? 'selected' : ''}>Não</option><option value="sim" ${manual.audit === 'sim' ? 'selected' : ''}>Sim</option></select></td>
@@ -2957,7 +2960,7 @@ async function loadMonthFromSupabase(monthKey){
   const setorRows = allRef.filter(r => r.tipo === 'setor');
   state.sheets = ['supabase'];
   state.refaturados = refRows.map(r => ({
-    dataRefaturado: `${ano}-${mes}-01`, tomadorRefaturado: r.cliente || '', refaturado: r.documento || '',
+    dataRefaturado: r.data_baixa || '', tomadorRefaturado: r.cliente || '', refaturado: r.documento || '',
     freteRefaturado: parseNumber(r.frete_refaturado || 0), dataOriginal: '', operadorOriginal: r.operador || r.usuario || '',
     tomadorOriginal: r.cliente || '', original: r.documento_original || r.original_doc || '', freteOriginal: parseNumber(r.frete_original || 0),
     diferenca: 0, reduzido: sectorNormalize(r.reduzido || r.setor || ''), motivoBaixa: r.motivo_baixa || '',
@@ -2965,7 +2968,7 @@ async function loadMonthFromSupabase(monthKey){
     debit: parseNumber(r.debito || 0), userSetor: r.operador || r.usuario || '', setorLancamento: r.setor || ''
   }));
   state.substitutos = subRows.map(r => ({
-    dataSubstituto: `${ano}-${mes}-01`, tomadorSubstituto: r.cliente || '', substituto: r.documento || '',
+    dataSubstituto: r.data_baixa || '', tomadorSubstituto: r.cliente || '', substituto: r.documento || '',
     freteSubstituto: parseNumber(r.frete_substituto || 0), dataOriginal: '', operadorOriginal: r.operador || r.usuario || '',
     tomadorOriginal: r.cliente || '', original: r.documento_original || r.original_doc || '', freteOriginal: parseNumber(r.frete_original || 0),
     diferenca: 0, reduzido: sectorNormalize(r.reduzido || r.setor || ''), motivoBaixa: r.motivo_baixa || '',
