@@ -1,14 +1,13 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- saved from url=(0068)https://refaturamento.vercel.app/?perfil=admin&usuario=Administrador -->
+<html lang="pt-BR"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel Refaturamento e Baixas</title>
-  <link rel="icon" href="data:,">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./Painel Refaturamento e Baixas_files/chart.js.download"></script>
+  <script src="./Painel Refaturamento e Baixas_files/chartjs-plugin-datalabels@2"></script>
+  <script src="./Painel Refaturamento e Baixas_files/xlsx.full.min.js.download"></script>
+  <script src="./Painel Refaturamento e Baixas_files/supabase-js@2"></script>
   <style>
     :root{
       --bg:#08101d; --bg2:#0d1526; --panel:#121d31; --stroke:rgba(255,255,255,.08);
@@ -54,7 +53,7 @@
     @media (max-width:1200px){.grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-2{grid-template-columns:1fr}.controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media (max-width:860px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto;border-right:none;border-bottom:1px solid var(--stroke)}.controls{grid-template-columns:1fr}.grid-4{grid-template-columns:1fr}}
   </style>
-</head>
+<meta id="dcngeagmmhegagicpcmpinaoklddcgon"></head>
 <body>
 <div class="app">
   <aside class="sidebar">
@@ -63,16 +62,16 @@
       <p>Parser guiado pelos nomes dos blocos e cabeçalhos do Excel.</p>
     </div>
     <div class="menu">
-      <button class="active" data-view="dashboard">Dashboard</button>
+      <button class="" data-view="dashboard">Dashboard</button>
       <button data-view="registros">Registros</button>
-      <button data-view="conciliacao">Conciliação</button>
+      <button data-view="conciliacao" class="">Conciliação</button>
       <button data-view="motivos">Análise de Motivos</button>
       <button data-view="usuarios">Análise de Usuários</button>
       <button data-view="clientes">Análise de Clientes</button>
       <button data-view="setores">Análise por Setor</button>
       <button data-view="performance">Performance Usuários</button>
       <button data-view="anual">Análise Anual</button>
-      <button data-view="cadastro">Cadastro Manual</button>
+      <button data-view="cadastro" class="active">Cadastro Manual</button>
       <button data-view="config">Configuração</button>
     </div>
   </aside>
@@ -81,37 +80,52 @@
     <div class="topbar">
       <div class="title">
         <h2>Painel de Refaturamento</h2>
-        <p id="subtitle">Importe o Excel para iniciar a leitura.</p>
+        <p id="subtitle">Excel carregado com 1 aba(s). Refaturados: 25. Substitutos: 18.</p>
       </div>
       <div class="chips">
-        <div class="chip" id="chipSheets">0 abas</div>
-        <div class="chip" id="chipRef">0 refaturados</div>
-        <div class="chip" id="chipSub">0 substitutos</div>
-        <div class="chip" id="chipFat">0 faturamento</div>
-        <div class="chip" id="chipTotal">R$ 0,00</div>
+        <div class="chip" id="chipSheets">1 abas</div>
+        <div class="chip" id="chipRef">25 refaturados</div>
+        <div class="chip" id="chipSub">18 substitutos</div>
+        <div class="chip" id="chipFat">8 faturamento</div>
+        <div class="chip" id="chipTotal">156.104,20</div>
       </div>
       <div class="field" style="min-width:260px; max-width:320px;">
         <label>Mês consultado</label>
         <div style="display:flex; gap:8px; align-items:center;">
-          <select id="monthViewSelect"></select>
+          <select id="monthViewSelect"><option value="">Último importado</option><option value="2026-01">Jan/2026</option><option value="2026-02">Fev/2026</option><option value="2026-03">Mar/2026</option><option value="2026-04">Abr/2026</option><option value="2026-05">Mai/2026</option></select>
           <button class="btn secondary" id="btnApplyMonthView" type="button">Consultar</button>
         </div>
       </div>
     </div>
 
-    <section id="dashboard" class="view active">
-      <div class="grid grid-4" id="kpiGrid"></div>
+    <section id="dashboard" class="view">
+      <div class="grid grid-4" id="kpiGrid">
+    <div class="kpi"><div class="label">Refaturado total</div><div class="value">156.104,20</div><div class="hint">Soma do campo Débito dos blocos FRETES REFATURADOS</div></div>
+    <div class="kpi"><div class="label">Valor total</div><div class="value">423.182,65</div><div class="hint">Refaturado + substituto</div></div>
+    <div class="kpi"><div class="label">Frete substituto total</div><div class="value">267.078,45</div><div class="hint">Soma do campo FRETE_SUBSTITUTO</div></div>
+    <div class="kpi"><div class="label">Mês diferente</div><div class="value">0</div><div class="hint">Solicitação x baixa</div></div>
+  </div>
       <div class="grid grid-2" style="margin-top:16px;">
-        <div class="card"><h3>Resumo executivo</h3><div class="sub">Visão geral consolidada.</div><div id="resumoBox" class="box-info">Nenhum arquivo importado ainda.</div></div>
-        <div class="card"><h3>Alertas</h3><div class="sub">Solicitação e consistência.</div><div id="alertasBox" class="box-danger">Sem análise enquanto nenhum arquivo foi importado.</div></div>
+        <div class="card"><h3>Resumo executivo</h3><div class="sub">Visão geral consolidada.</div><div id="resumoBox" class="box-info">
+    Refaturado total: <strong>156.104,20</strong><br>
+    Valor total: <strong>423.182,65</strong><br>
+    Frete substituto total: <strong>267.078,45</strong><br>
+    Fórmula: <strong>refaturado + substituto</strong>
+  </div></div>
+        <div class="card"><h3>Alertas</h3><div class="sub">Solicitação e consistência.</div><div id="alertasBox" class="box-danger">
+    Série 80/81 sem solicitação: <strong>25</strong><br>
+    Baixas em mês diferente: <strong>0</strong><br>
+    Faturamento: <strong>8</strong> linhas<br>
+    Demais setores: <strong>12</strong> linhas
+  </div></div>
       </div>
       <div class="grid grid-2" style="margin-top:16px;">
-        <div class="card"><h3>Top clientes por valor refaturado</h3><div class="sub">Cliente x soma de frete_refaturado.</div><div class="chart-box"><canvas id="chartTopClienteRef"></canvas></div></div>
-        <div class="card"><h3>Top clientes por valor substituto</h3><div class="sub">Cliente x soma de frete_substituto.</div><div class="chart-box"><canvas id="chartTopClienteSub"></canvas></div></div>
+        <div class="card"><h3>Top clientes por valor refaturado</h3><div class="sub">Cliente x soma de frete_refaturado.</div><div class="chart-box"><canvas id="chartTopClienteRef" style="box-sizing: border-box; display: block; height: 360px; width: 473.3px;" width="355" height="270"></canvas></div></div>
+        <div class="card"><h3>Top clientes por valor substituto</h3><div class="sub">Cliente x soma de frete_substituto.</div><div class="chart-box"><canvas id="chartTopClienteSub" style="box-sizing: border-box; display: block; height: 360px; width: 473.3px;" width="355" height="270"></canvas></div></div>
       </div>
       <div class="grid grid-2" style="margin-top:16px;">
-        <div class="card"><h3>Setores por valor</h3><div class="sub">Soma do débito por setor.</div><div class="chart-box"><canvas id="chartSetoresDebito"></canvas></div></div>
-        <div class="card"><h3>Resumo por setor</h3><div class="sub">Tabela rápida dos totais.</div><div class="table-wrap compact"><table><thead><tr><th>Setor</th><th>Débito</th></tr></thead><tbody id="tbodyDashSetor"></tbody></table></div></div>
+        <div class="card"><h3>Setores por valor</h3><div class="sub">Soma do débito por setor.</div><div class="chart-box"><canvas id="chartSetoresDebito" style="box-sizing: border-box; display: block; height: 360px; width: 473.3px;" width="355" height="270"></canvas></div></div>
+        <div class="card"><h3>Resumo por setor</h3><div class="sub">Tabela rápida dos totais.</div><div class="table-wrap compact"><table><thead><tr><th>Setor</th><th>Débito</th></tr></thead><tbody id="tbodyDashSetor"><tr><td>CLIENTE</td><td>109.466,57</td></tr><tr><td>FATURAMENTO</td><td>39.504,81</td></tr><tr><td>PCO</td><td>7.057,82</td></tr><tr><td>FINANCEIRO</td><td>75,00</td></tr></tbody></table></div></div>
       </div>
     </section>
 
@@ -120,7 +134,7 @@
         <h3>Registros</h3>
         <div class="sub">Substitutos, refaturados e vínculos por setor.</div>
         <div class="controls">
-          <div class="field"><label>Buscar</label><input id="filterSearch" placeholder="CTE, cliente, usuário..." /></div>
+          <div class="field"><label>Buscar</label><input id="filterSearch" placeholder="CTE, cliente, usuário..."></div>
           <div class="field"><label>Tipo</label><select id="filterTipo"><option value="todos">Todos</option><option value="refaturado">Refaturados</option><option value="substituto">Substitutos</option></select></div>
           <div class="field"><label>Status baixa</label><select id="filterStatus"><option value="todos">Todos</option><option value="ok">Mês correto</option><option value="bad">Mês diferente</option><option value="empty">Sem solicitação</option></select></div>
           <div class="field"><label>Somente série 80/81</label><select id="filterSerie80"><option value="nao">Não</option><option value="sim">Sim</option></select></div>
@@ -130,7 +144,703 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Tipo</th><th>CTE</th><th>Original</th><th>Cliente</th><th>Usuário original</th><th>Setor</th><th>Baixa</th><th>Débito</th><th>Frete original</th><th>Frete refaturado</th><th>Frete substituto</th><th>Motivo</th></tr></thead>
-            <tbody id="tbodyRegistros"></tbody>
+            <tbody id="tbodyRegistros">
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-81-49</strong></td>
+        <td>5-1-151171</td>
+        <td>42409-COLGATE-PALMOLIVE COMERCIAL LTDA</td>
+        <td>KAROLINE.ROMANINI</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>10.527,45</td>
+        <td>25.418,26</td>
+        <td>1.018,23</td>
+        <td>0,00</td>
+        <td>ESTE CTE SUBSTITITUI O COMPLEMENTO 152027 POR VALOR INCORRETO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-80-1149</strong></td>
+        <td>5-1-152659</td>
+        <td>5358-NESTLE NORDESTE ALIMENTOS E BEBIDAS LTDA</td>
+        <td>KAROLINE.ROMANINI</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>10.527,45</td>
+        <td>10.527,45</td>
+        <td>3.359,67</td>
+        <td>0,00</td>
+        <td>B101363441 - NF DE PALLET 000120334
+SUBSTITUTO DO CTE 152659 - VALOR PRECISA SER RATEADO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-81-50</strong></td>
+        <td>5-80-1069</td>
+        <td>38264-STELLA D ORO ALIMENTOS LTDA</td>
+        <td>MATHEUS.DEVISE</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>7.966,95</td>
+        <td>701,61</td>
+        <td>0,00</td>
+        <td>ESTE CTE SUBSTITUI A NFS 118 POR MOTIVO DE VALOR E EMISSAO INCORRETOS</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-81-51</strong></td>
+        <td>5-80-1069</td>
+        <td>38264-STELLA D ORO ALIMENTOS LTDA</td>
+        <td>MATHEUS.DEVISE</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>7.966,95</td>
+        <td>701,61</td>
+        <td>0,00</td>
+        <td>ESTE CTE SUBSTITUI A NFS 118 POR MOTIVO DE VALOR E EMISSAO INCORRETOS</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-81-52</strong></td>
+        <td>5-14-12852</td>
+        <td>284-NESTLE BRASIL LTDA</td>
+        <td>IMPORTA_XML</td>
+        <td>PCO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>5.608,65</td>
+        <td>1.066,39</td>
+        <td>0,00</td>
+        <td>ESTE CTE SUBSTITUI O COMPLEMENTO 153180 POR ESTAR VINCULADO AO CTE BASE ERRADO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-81-53</strong></td>
+        <td>5-14-11534</td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>MULTISOFT.SERVICE</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>381,48</td>
+        <td>351,65</td>
+        <td>418,47</td>
+        <td>0,00</td>
+        <td>B101288840 - ESTE CTE SUBSTITUI O COMPLEMENTO 153162 POR ESTAR VINCULADO O CTE BASE INCORRETO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>1-80-946</strong></td>
+        <td>1-1-172473</td>
+        <td>27155-H J SANTA FÉ COMERCIAL E AGRÍCOLA LTDA</td>
+        <td>ADEMIR.FERNANDES</td>
+        <td>CLIENTE</td>
+        <td>-</td>
+        <td>20.200,00</td>
+        <td>20.200,00</td>
+        <td>20.200,00</td>
+        <td>0,00</td>
+        <td>CRT: AR-178.060717
+FATURA  00003-00000622
+REF CC-HJS
+ESTE CTE SUBSTITUI O CTE 172473 POR MOTIVO DE ALTERAÇÃO DE NOTA FISCAL</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>1-80-947</strong></td>
+        <td>1-1-173192</td>
+        <td>27155-H J SANTA FÉ COMERCIAL E AGRÍCOLA LTDA</td>
+        <td>ADEMIR.FERNANDES</td>
+        <td>CLIENTE</td>
+        <td>-</td>
+        <td>24.200,00</td>
+        <td>24.200,00</td>
+        <td>24.200,00</td>
+        <td>0,00</td>
+        <td>CRT: CL547018758
+FATURA  8821
+REF CC032-HJS
+ESTE CTE SUBSTITUI O CTE 173192 POR MOTIVO DE ALTERAÇÃO DE NOTA FISCAL</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>1-80-948</strong></td>
+        <td>1-1-173191</td>
+        <td>55909-H J SANTA FE COMERCIO E AGRICOLA LTDA</td>
+        <td>ADEMIR.FERNANDES</td>
+        <td>CLIENTE</td>
+        <td>-</td>
+        <td>22.200,00</td>
+        <td>22.200,00</td>
+        <td>22.200,00</td>
+        <td>0,00</td>
+        <td>CRT: AR-178.060822
+FATURA 00003-00001141
+REF CC031-AUR
+ESTE CTE SUBSTITUI O CTE 173191 POR MOTIVO DE ALTERAÇÃO DE NOTA FISCAL</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>1-80-949</strong></td>
+        <td>1-1-169591</td>
+        <td>7403-NESTLE BRASIL LTDA</td>
+        <td>KAROLINE.ROMANINI</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>10.527,45</td>
+        <td>7.556,82</td>
+        <td>7.556,82</td>
+        <td>0,00</td>
+        <td>B101307436
+SUBSTITUTO DO CTE 169591 - NESTLÉ TROCOU NOTAS</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>1-80-950</strong></td>
+        <td>1-1-170574</td>
+        <td>7403-NESTLE BRASIL LTDA</td>
+        <td>TAYNER.PERCIO</td>
+        <td>CLIENTE</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>7.556,82</td>
+        <td>7.556,82</td>
+        <td>0,00</td>
+        <td>ocorrencia 11981740
+MARVEL2026204749
+38357660
+SUBSTITUTO DO CTE 170574</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>7-80-333</strong></td>
+        <td>5-1-150847</td>
+        <td>48766-AJINOMOTO DO BRASIL INDUSTRIA E COMERCIO DE ALIMENTOS LTDA</td>
+        <td>TIAGO.CARNIEL</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>9.989,28</td>
+        <td>9.989,28</td>
+        <td>8.790,57</td>
+        <td>0,00</td>
+        <td>6100231211
+ESTE CTE SUBSTITUI O CTE 150847 POR MOTIVO DE FILIAL INCORRETA</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>7-80-334</strong></td>
+        <td>7-1-35367</td>
+        <td>584-FERRERO DO BRASIL INDUSTRIA DOCEIRA E ALIMENTAR LTDA</td>
+        <td>MATHEUS.DEVISE</td>
+        <td>PCO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>9.299,53</td>
+        <td>4.625,86</td>
+        <td>0,00</td>
+        <td>load 100756486
+CRT *OCR*
+OCORRENCIA 338589
+SUBSTITUTO DO CTE 35367 REFERENTE A VALOR INCORRETO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>1-80-951</strong></td>
+        <td>1-1-173105</td>
+        <td>846-NESTLE BRASIL LTDA</td>
+        <td>GEOVANA.SILVA</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>15.168,77</td>
+        <td>15.856,73</td>
+        <td>0,00</td>
+        <td>B200296164
+SUBSTITUTO DO CTE 173105 - NÃO SOMOU PEDAGIO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-80-1150</strong></td>
+        <td>5-1-152975</td>
+        <td>10168-NESTLE BRASIL LTDA</td>
+        <td>GEOVANA.SILVA</td>
+        <td>FATURAMENTO/CLIENTE</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>9.628,23</td>
+        <td>9.628,23</td>
+        <td>0,00</td>
+        <td>B101370307
+SUBSTITUTO DO CTE 152975 - TOMADOR INCORRETO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-80-1151</strong></td>
+        <td>5-14-12956</td>
+        <td>837-NESTLE BRASIL LTDA.</td>
+        <td>MULTISOFT.SERVICE</td>
+        <td>CLIENTE</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>9.628,23</td>
+        <td>9.628,23</td>
+        <td>0,00</td>
+        <td>B101373522
+SUBSTITUTO DO CTE 12956 - TOMADOR INCORRETO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>1-80-952</strong></td>
+        <td>1-1-173105</td>
+        <td>846-NESTLE BRASIL LTDA</td>
+        <td>GEOVANA.SILVA</td>
+        <td>FATURAMENTO/CLIENTE</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>15.168,77</td>
+        <td>15.856,73</td>
+        <td>0,00</td>
+        <td>B200296164
+SUBSTITUTO DO CTE 173105</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-80-1152</strong></td>
+        <td>5-14-13037</td>
+        <td>300-Nestle Brasil Ltda.</td>
+        <td>MULTISOFT.SERVICE</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>381,48</td>
+        <td>6.744,95</td>
+        <td>6.744,95</td>
+        <td>0,00</td>
+        <td>B101375565
+SUBSTITUTO DO CTE 13037 - EMITIDO COM NF DE PALLET</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-80-1153</strong></td>
+        <td>5-1-153131</td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>KAROLINE.ROMANINI</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>10.527,45</td>
+        <td>8.288,23</td>
+        <td>37,34</td>
+        <td>0,00</td>
+        <td>ERRO PIS/COFINS E RATEIO
+B101374433</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>1-80-953</strong></td>
+        <td>1-1-165912</td>
+        <td>7403-NESTLE BRASIL LTDA</td>
+        <td>MATHEUS.DEVISE</td>
+        <td>CLIENTE</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>19.886,36</td>
+        <td>19.886,36</td>
+        <td>0,00</td>
+        <td>NF PALET 461647
+CARGA B101260778
+DEVOLUÇÃO DE CARGA TOTAL OCORRENCIA 11905205
+SUBSTITUTO DO CTE 165912 - CLIENTE SUBSTITUIU TODAS AS NOTAS</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-80-1154</strong></td>
+        <td>5-1-153132</td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>TIAGO.CARNIEL</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>381,48</td>
+        <td>41,15</td>
+        <td>2.181,10</td>
+        <td>0,00</td>
+        <td>B101374433 
+SUBSTITUTO DO CTE 153132 - SOMOU PIS/COFINS</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-80-1155</strong></td>
+        <td>5-1-153131</td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>KAROLINE.ROMANINI</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>10.527,45</td>
+        <td>8.288,23</td>
+        <td>5.340,47</td>
+        <td>0,00</td>
+        <td>B101374433
+SUBSTITUTO DO CTE 153131 - PIS/COFINS E RATEIO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>1-81-26</strong></td>
+        <td>1-21-6177</td>
+        <td>792-BRF S.A.</td>
+        <td>MULTISOFT.SERVICE</td>
+        <td>PCO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>4.580,72</td>
+        <td>1.591,84</td>
+        <td>0,00</td>
+        <td>ESTE CTE SUBSTITUIE O COMPLEMENTO 16 DEVIDO A VALOR INCORRETO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-80-1156</strong></td>
+        <td>5-1-150200</td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>TAYNER.PERCIO</td>
+        <td>CLIENTE</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>2.045,45</td>
+        <td>2.185,80</td>
+        <td>0,00</td>
+        <td>B101306317
+ocorrencia 11966630
+marvel2026198279
+SUBSTITUTO DO CTE 150200 - NESTLÉ SUBSTITUIU A NF / DEVOLUÇÃO</td>
+      </tr>
+    
+      <tr>
+        <td>refaturado</td>
+        <td><strong>5-81-55</strong></td>
+        <td>5-80-1069</td>
+        <td>38264-STELLA D ORO ALIMENTOS LTDA</td>
+        <td>MATHEUS.DEVISE</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>7.966,95</td>
+        <td>1.403,23</td>
+        <td>0,00</td>
+        <td>ESTE CTE SUBSTITUI A NFS 118 POR MOTIVO DE VALOR INCORRETO</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>5-1-153517</strong></td>
+        <td>5-1-151719</td>
+        <td>42409-COLGATE-PALMOLIVE COMERCIAL LTDA</td>
+        <td>KAROLINE.ROMANINI</td>
+        <td>CLIENTE</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>17.425,66</td>
+        <td>0,00</td>
+        <td>17.425,66</td>
+        <td>1109111781 ESTE CTE SUBSTITUI O CTE 151719 POR MOTIVO DE CLIENTE RECUSOU INDEVIDAMENTE</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174042</strong></td>
+        <td>1-1-173681</td>
+        <td>31142-IRMAOS MUFFATO S.A.</td>
+        <td>JOSETE.GABRIEL</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>8.700,00</td>
+        <td>0,00</td>
+        <td>3.026,08</td>
+        <td>MUF11244
+SUBSTITUTO DO CTE 173681 REFERENTE A RATEIO INCORRETO</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174084</strong></td>
+        <td>1-1-173708</td>
+        <td>2522-ARGOFRUTA COMERCIAL EXPORTADORA LTDA</td>
+        <td>JOSETE.GABRIEL</td>
+        <td>COMERCIAL</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>50.000,00</td>
+        <td>0,00</td>
+        <td>50.673,52</td>
+        <td>CRT BR547046508
+SUBSTITUTO DO CTE 173708 REFERENTE A AD VALOREM</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174361</strong></td>
+        <td>1-1-173821</td>
+        <td>45260-SEARA ALIMENTOS LTDA</td>
+        <td>JOSETE.GABRIEL</td>
+        <td>COMERCIAL</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>31.500,00</td>
+        <td>0,00</td>
+        <td>31.500,00</td>
+        <td>1091216
+CRT BR 547046525
+ESTE CTE SUBSTITUI O CTE 173821 POR MOTIVO DE PAGADOR INCORRETO</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>7-1-36224</strong></td>
+        <td>7-1-36111</td>
+        <td>26083-NESTLE BRASIL LTDA</td>
+        <td>ANGELICA.LUCCA</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>30.033,27</td>
+        <td>0,00</td>
+        <td>27.255,19</td>
+        <td>B101375471
+NF 165370 CONTEM 20 PALLETES
+SUBSTITUTO DO CTE 36111 - SOMOU PIS/COFINS</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174465</strong></td>
+        <td>1-1-173322</td>
+        <td>846-NESTLE BRASIL LTDA</td>
+        <td>GEOVANA.SILVA</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>15.168,77</td>
+        <td>0,00</td>
+        <td>15.856,73</td>
+        <td>B200294082
+SUBSTITUTO DO CTE 173322 - IMBOUND, SEM PEDAGIO</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>5-1-153829</strong></td>
+        <td>5-1-153133</td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>TIAGO.CARNIEL</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>6.274,41</td>
+        <td>0,00</td>
+        <td>5.694,02</td>
+        <td>B101376393
+SUBSTITUTO DO CTE 153133 - SOMOU PIS/COFINS</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174474</strong></td>
+        <td>1-1-173440</td>
+        <td>846-NESTLE BRASIL LTDA</td>
+        <td>KAROLINE.ROMANINI</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>15.168,77</td>
+        <td>0,00</td>
+        <td>15.856,73</td>
+        <td>B200295332
+SUBSTITUTO DO CTE 173440 - IMBOUND NÃO SOMOU PEDAGIO</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174475</strong></td>
+        <td>1-1-173733</td>
+        <td>820-NESTLE BRASIL LTDA</td>
+        <td>ADEMIR.FERNANDES</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>10.399,78</td>
+        <td>0,00</td>
+        <td>10.481,26</td>
+        <td>4581164759
+SUBSTITUTO DO CTE 173733 - IMBOUND NÃO SOMOU PEDAGIO</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174478</strong></td>
+        <td>1-1-173732</td>
+        <td>820-NESTLE BRASIL LTDA</td>
+        <td>ADEMIR.FERNANDES</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>10.399,78</td>
+        <td>0,00</td>
+        <td>10.481,26</td>
+        <td>B200297667
+SUBSTITUTO DO CTE 173732 - IMBOUND NÃO SOMOU PEDAGIO</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174480</strong></td>
+        <td>1-1-173731</td>
+        <td>820-NESTLE BRASIL LTDA</td>
+        <td>ADEMIR.FERNANDES</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>10.399,78</td>
+        <td>0,00</td>
+        <td>10.481,26</td>
+        <td>B200298034
+SUBSTITUTO DO CTE 173731 - INBOUND NÃO SOMOU PEDAGIO</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174482</strong></td>
+        <td>1-1-173730</td>
+        <td>820-NESTLE BRASIL LTDA</td>
+        <td>ADEMIR.FERNANDES</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>10.399,78</td>
+        <td>0,00</td>
+        <td>10.481,26</td>
+        <td>B200297673
+SUBSTITUTO DO CTE 173730 - IMBOUND NÃO SOMOU PEDAGIO</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174483</strong></td>
+        <td>1-1-173729</td>
+        <td>820-NESTLE BRASIL LTDA</td>
+        <td>ADEMIR.FERNANDES</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>10.399,78</td>
+        <td>0,00</td>
+        <td>10.481,26</td>
+        <td>B200297670
+SUBSTITUTO DO CTE 173729 - IMBOND NÃO SOMOU PEDAGIO</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174487</strong></td>
+        <td>1-13-3219</td>
+        <td>137-NESTLE BRASIL LTDA</td>
+        <td>MULTISOFT.SERVICE</td>
+        <td>CLIENTE</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>11.638,05</td>
+        <td>0,00</td>
+        <td>11.363,64</td>
+        <td>B101380287
+SUBSTITUTO DO CTE 3219 - VALOR DIVERGENTE DA NE</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174490</strong></td>
+        <td>1-13-3225</td>
+        <td>137-NESTLE BRASIL LTDA</td>
+        <td>MULTISOFT.SERVICE</td>
+        <td>CLIENTE</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>3.155,67</td>
+        <td>0,00</td>
+        <td>5.000,00</td>
+        <td>B101380256
+SUBSTITUTO DO CTE 3225 - VALOR DIVERGENTE DA NE E SOMOU ICMS INDEVIDAMENTE</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>5-1-153842</strong></td>
+        <td>5-1-153492</td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>ADEMIR.FERNANDES</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>6.834,38</td>
+        <td>0,00</td>
+        <td>5.694,02</td>
+        <td>B101382320
+SUBSTITUTO DO CTE 153492 - VALOR INCORRETO, CARGA SECA</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>7-1-36226</strong></td>
+        <td>7-1-36179</td>
+        <td>2982-NESTLE BRASIL LTDA</td>
+        <td>KAROLINE.ROMANINI</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>16.358,46</td>
+        <td>0,00</td>
+        <td>14.845,30</td>
+        <td>B101382340 - NF DE PALLET 000134028
+SUBSTITUTO DO CTE 36179 - SOMOU PIS/COFINS INDEVIDAMENTE</td>
+      </tr>
+    
+      <tr>
+        <td>substituto</td>
+        <td><strong>1-1-174496</strong></td>
+        <td>1-1-172981</td>
+        <td>820-NESTLE BRASIL LTDA</td>
+        <td>ADEMIR.FERNANDES</td>
+        <td>FATURAMENTO</td>
+        <td>-</td>
+        <td>0,00</td>
+        <td>10.162,59</td>
+        <td>0,00</td>
+        <td>10.481,26</td>
+        <td>B200296573
+SUBSTITUTO DO CTE 172981 - IMBOUND NÃO SOMOU PEDAGIO</td>
+      </tr>
+    </tbody>
           </table>
         </div>
       </div>
@@ -138,30 +848,30 @@
 
     <section id="conciliacao" class="view">
       <div class="grid grid-2">
-        <div class="card"><h3>Série 80/81 sem solicitação</h3><div class="table-wrap compact"><table><thead><tr><th>CTE</th><th>Cliente</th><th>Baixa</th><th>Débito</th></tr></thead><tbody id="tbodySemSolicitacao"></tbody></table></div></div>
-        <div class="card"><h3>Baixa em mês diferente</h3><div class="table-wrap compact"><table><thead><tr><th>CTE</th><th>Cliente</th><th>Solicitação</th><th>Baixa</th><th>Status</th></tr></thead><tbody id="tbodyMesDiferente"></tbody></table></div></div>
+        <div class="card"><h3>Série 80/81 sem solicitação</h3><div class="table-wrap compact"><table><thead><tr><th>CTE</th><th>Cliente</th><th>Baixa</th><th>Débito</th></tr></thead><tbody id="tbodySemSolicitacao"><tr><td>5-81-49</td><td>42409-COLGATE-PALMOLIVE COMERCIAL LTDA</td><td>-</td><td>10.527,45</td></tr><tr><td>5-80-1149</td><td>5358-NESTLE NORDESTE ALIMENTOS E BEBIDAS LTDA</td><td>-</td><td>10.527,45</td></tr><tr><td>5-81-50</td><td>38264-STELLA D ORO ALIMENTOS LTDA</td><td>-</td><td>0,00</td></tr><tr><td>5-81-51</td><td>38264-STELLA D ORO ALIMENTOS LTDA</td><td>-</td><td>0,00</td></tr><tr><td>5-81-52</td><td>284-NESTLE BRASIL LTDA</td><td>-</td><td>0,00</td></tr><tr><td>5-81-53</td><td>303-Nestle Brasil Ltda.</td><td>-</td><td>381,48</td></tr><tr><td>1-80-946</td><td>27155-H J SANTA FÉ COMERCIAL E AGRÍCOLA LTDA</td><td>-</td><td>20.200,00</td></tr><tr><td>1-80-947</td><td>27155-H J SANTA FÉ COMERCIAL E AGRÍCOLA LTDA</td><td>-</td><td>24.200,00</td></tr><tr><td>1-80-948</td><td>55909-H J SANTA FE COMERCIO E AGRICOLA LTDA</td><td>-</td><td>22.200,00</td></tr><tr><td>1-80-949</td><td>7403-NESTLE BRASIL LTDA</td><td>-</td><td>10.527,45</td></tr><tr><td>1-80-950</td><td>7403-NESTLE BRASIL LTDA</td><td>-</td><td>0,00</td></tr><tr><td>7-80-333</td><td>48766-AJINOMOTO DO BRASIL INDUSTRIA E COMERCIO DE ALIMENTOS LTDA</td><td>-</td><td>9.989,28</td></tr><tr><td>7-80-334</td><td>584-FERRERO DO BRASIL INDUSTRIA DOCEIRA E ALIMENTAR LTDA</td><td>-</td><td>0,00</td></tr><tr><td>1-80-951</td><td>846-NESTLE BRASIL LTDA</td><td>-</td><td>0,00</td></tr><tr><td>5-80-1150</td><td>10168-NESTLE BRASIL LTDA</td><td>-</td><td>0,00</td></tr><tr><td>5-80-1151</td><td>837-NESTLE BRASIL LTDA.</td><td>-</td><td>0,00</td></tr><tr><td>1-80-952</td><td>846-NESTLE BRASIL LTDA</td><td>-</td><td>0,00</td></tr><tr><td>5-80-1152</td><td>300-Nestle Brasil Ltda.</td><td>-</td><td>381,48</td></tr><tr><td>5-80-1153</td><td>303-Nestle Brasil Ltda.</td><td>-</td><td>10.527,45</td></tr><tr><td>1-80-953</td><td>7403-NESTLE BRASIL LTDA</td><td>-</td><td>0,00</td></tr><tr><td>5-80-1154</td><td>303-Nestle Brasil Ltda.</td><td>-</td><td>381,48</td></tr><tr><td>5-80-1155</td><td>303-Nestle Brasil Ltda.</td><td>-</td><td>10.527,45</td></tr><tr><td>1-81-26</td><td>792-BRF S.A.</td><td>-</td><td>0,00</td></tr><tr><td>5-80-1156</td><td>303-Nestle Brasil Ltda.</td><td>-</td><td>0,00</td></tr><tr><td>5-81-55</td><td>38264-STELLA D ORO ALIMENTOS LTDA</td><td>-</td><td>0,00</td></tr></tbody></table></div></div>
+        <div class="card"><h3>Baixa em mês diferente</h3><div class="table-wrap compact"><table><thead><tr><th>CTE</th><th>Cliente</th><th>Solicitação</th><th>Baixa</th><th>Status</th></tr></thead><tbody id="tbodyMesDiferente"><tr><td colspan="5" class="center muted">Nenhum registro</td></tr></tbody></table></div></div>
       </div>
     </section>
 
     <section id="motivos" class="view">
       <div class="grid grid-2">
-        <div class="card"><h3>Ranking de valores: total x refaturado x substituto</h3><div class="sub">Total = refaturado + substituto. Refaturado = soma dos débitos dos setores.</div><div class="chart-box"><canvas id="chartOriginalRefSubs"></canvas></div></div>
-        <div class="card"><h3>Motivos por quantidade</h3><div class="chart-box"><canvas id="chartMotivosQtd"></canvas></div></div>
+        <div class="card"><h3>Ranking de valores: total x refaturado x substituto</h3><div class="sub">Total = refaturado + substituto. Refaturado = soma dos débitos dos setores.</div><div class="chart-box"><canvas id="chartOriginalRefSubs" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
+        <div class="card"><h3>Motivos por quantidade</h3><div class="chart-box"><canvas id="chartMotivosQtd" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
       </div>
       <div class="grid grid-2" style="margin-top:16px;">
-        <div class="card"><h3>Motivos por valor</h3><div class="sub">Soma do débito vinculado ao motivo.</div><div class="chart-box"><canvas id="chartMotivosValor"></canvas></div></div>
-        <div class="card"><h3>Tabela de motivos</h3><div class="table-wrap"><table><thead><tr><th>Motivo</th><th>Qtd.</th><th>Valor original</th><th>Valor refaturado</th><th>Valor substituto</th><th>Débito</th></tr></thead><tbody id="tbodyMotivos"></tbody></table></div></div>
+        <div class="card"><h3>Motivos por valor</h3><div class="sub">Soma do débito vinculado ao motivo.</div><div class="chart-box"><canvas id="chartMotivosValor" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
+        <div class="card"><h3>Tabela de motivos</h3><div class="table-wrap"><table><thead><tr><th>Motivo</th><th>Qtd.</th><th>Valor original</th><th>Valor refaturado</th><th>Valor substituto</th><th>Débito</th></tr></thead><tbody id="tbodyMotivos"><tr><td>nota fiscal indevida</td><td>8</td><td>112.022,53</td><td>97.632,20</td><td>0,00</td><td>100.602,83</td></tr><tr><td>Sem preenchimento</td><td>4</td><td>28.685,89</td><td>24.898,41</td><td>84.462,82</td><td>24.861,42</td></tr><tr><td>pis/cofins</td><td>3</td><td>16.617,61</td><td>7.558,91</td><td>47.794,51</td><td>21.436,38</td></tr><tr><td>pagador incorreto</td><td>2</td><td>19.256,46</td><td>19.256,46</td><td>31.500,00</td><td>19.256,46</td></tr><tr><td>valor incorreto</td><td>4</td><td>47.265,46</td><td>8.639,16</td><td>5.694,02</td><td>18.148,38</td></tr><tr><td>pedágio incorreto</td><td>1</td><td>15.168,77</td><td>15.856,73</td><td>94.601,02</td><td>15.856,73</td></tr><tr><td>nota fiscal de pallet</td><td>2</td><td>17.272,40</td><td>10.104,62</td><td>0,00</td><td>10.908,93</td></tr><tr><td>filial incorreta</td><td>1</td><td>9.989,28</td><td>8.790,57</td><td>0,00</td><td>9.989,28</td></tr><tr><td>rateio incorreto</td><td>0</td><td>0,00</td><td>0,00</td><td>3.026,08</td><td>0,00</td></tr></tbody></table></div></div>
       </div>
     </section>
 
     <section id="usuarios" class="view">
   <div class="grid grid-2">
-    <div class="card"><h3>Usuários que mais cometem erro</h3><div class="sub">Somente setor Faturamento.</div><div class="chart-box"><canvas id="chartUsuariosErroQtd"></canvas></div></div>
-    <div class="card"><h3>Usuários que mais cometem erro por valor</h3><div class="sub">Somente setor Faturamento, usando débito.</div><div class="chart-box"><canvas id="chartUsuariosErroValor"></canvas></div></div>
+    <div class="card"><h3>Usuários que mais cometem erro</h3><div class="sub">Somente setor Faturamento.</div><div class="chart-box"><canvas id="chartUsuariosErroQtd" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
+    <div class="card"><h3>Usuários que mais cometem erro por valor</h3><div class="sub">Somente setor Faturamento, usando débito.</div><div class="chart-box"><canvas id="chartUsuariosErroValor" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
   </div>
   <div class="card" style="margin-top:16px;">
     <h3>Tabela de usuários</h3>
-    <div class="table-wrap"><table><thead><tr><th>Usuário</th><th>Qtd. erros</th><th>Valor em erro</th></tr></thead><tbody id="tbodyUsuarios"></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Usuário</th><th>Qtd. erros</th><th>Valor em erro</th></tr></thead><tbody id="tbodyUsuarios"><tr><td>ademir.fernandes</td><td>7</td><td>68.581,58</td></tr><tr><td>tiago.carniel</td><td>4</td><td>28.238,28</td></tr><tr><td>karoline.romanini</td><td>3</td><td>41.229,48</td></tr><tr><td>angelica.lucca</td><td>1</td><td>27.255,19</td></tr><tr><td>geovana.silva</td><td>1</td><td>15.856,73</td></tr><tr><td>angelita.santos</td><td>1</td><td>5.000,00</td></tr><tr><td>josete.gabriel</td><td>1</td><td>3.026,08</td></tr><tr><td>karllin</td><td>1</td><td>418,47</td></tr></tbody></table></div>
   </div>
   <div class="card" style="margin-top:16px;">
     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
@@ -171,23 +881,23 @@
       </div>
       <div class="field" style="max-width:260px; min-width:180px;">
         <label>Usuário</label>
-        <select id="usuariosReasonSelect"></select>
+        <select id="usuariosReasonSelect"><option value="TODOS">Todos</option><option value="ademir.fernandes">ademir.fernandes</option><option value="tiago.carniel">tiago.carniel</option><option value="karoline.romanini">karoline.romanini</option><option value="angelica.lucca">angelica.lucca</option><option value="geovana.silva">geovana.silva</option><option value="angelita.santos">angelita.santos</option><option value="josete.gabriel">josete.gabriel</option><option value="karllin">karllin</option></select>
       </div>
     </div>
     <div class="grid grid-2" style="margin-top:12px;">
       <div class="card" style="padding:14px;">
         <h3 style="font-size:18px;">Motivos por quantidade</h3>
-        <div class="chart-box"><canvas id="chartUsuarioMotivosQtd"></canvas></div>
+        <div class="chart-box"><canvas id="chartUsuarioMotivosQtd" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
       </div>
       <div class="card" style="padding:14px;">
         <h3 style="font-size:18px;">Motivos por valor</h3>
-        <div class="chart-box"><canvas id="chartUsuarioMotivosValor"></canvas></div>
+        <div class="chart-box"><canvas id="chartUsuarioMotivosValor" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
       </div>
     </div>
     <div class="table-wrap" style="margin-top:16px;">
       <table>
         <thead><tr><th>CTE</th><th>Cliente</th><th>Usuário</th><th>Motivo</th><th>Valor em erro</th><th>Setor</th></tr></thead>
-        <tbody id="tbodyUsuariosMotivos"></tbody>
+        <tbody id="tbodyUsuariosMotivos"><tr><td><strong>5-80-1149</strong></td><td>5358-NESTLE NORDESTE ALIMENTOS E BEBIDAS LTDA</td><td>karoline.romanini</td><td>nota fiscal de pallet</td><td>10.527,45</td><td>FATURAMENTO</td></tr><tr><td><strong>1-80-949</strong></td><td>7403-NESTLE BRASIL LTDA</td><td>karoline.romanini</td><td>nota fiscal indevida</td><td>10.527,45</td><td>FATURAMENTO</td></tr><tr><td><strong>5-80-1153</strong></td><td>303-Nestle Brasil Ltda.</td><td>karoline.romanini</td><td>pis/cofins</td><td>10.527,45</td><td>FATURAMENTO</td></tr><tr><td><strong>5-80-1155</strong></td><td>303-Nestle Brasil Ltda.</td><td>karoline.romanini</td><td>pis/cofins</td><td>10.527,45</td><td>FATURAMENTO</td></tr><tr><td><strong>5-81-49</strong></td><td>42409-COLGATE-PALMOLIVE COMERCIAL LTDA</td><td>karoline.romanini</td><td>valor incorreto</td><td>10.527,45</td><td>FATURAMENTO</td></tr><tr><td><strong>7-80-333</strong></td><td>48766-AJINOMOTO DO BRASIL INDUSTRIA E COMERCIO DE ALIMENTOS LTDA</td><td>tiago.carniel</td><td>filial incorreta</td><td>9.989,28</td><td>FATURAMENTO</td></tr><tr><td><strong>5-80-1152</strong></td><td>300-Nestle Brasil Ltda.</td><td>multisoft.service</td><td>nota fiscal de pallet</td><td>381,48</td><td>FATURAMENTO</td></tr><tr><td><strong>5-80-1154</strong></td><td>303-Nestle Brasil Ltda.</td><td>tiago.carniel</td><td>pis/cofins</td><td>381,48</td><td>FATURAMENTO</td></tr><tr><td><strong>5-81-53</strong></td><td>303-Nestle Brasil Ltda.</td><td>multisoft.service</td><td>Sem preenchimento</td><td>381,48</td><td>FATURAMENTO</td></tr><tr><td><strong>5-81-50</strong></td><td>38264-STELLA D ORO ALIMENTOS LTDA</td><td>matheus.devise</td><td>nota fiscal indevida</td><td>0,00</td><td>FATURAMENTO</td></tr><tr><td><strong>5-81-51</strong></td><td>38264-STELLA D ORO ALIMENTOS LTDA</td><td>matheus.devise</td><td>nota fiscal indevida</td><td>0,00</td><td>FATURAMENTO</td></tr><tr><td><strong>5-80-1150</strong></td><td>10168-NESTLE BRASIL LTDA</td><td>geovana.silva</td><td>pagador incorreto</td><td>0,00</td><td>FATURAMENTO/CLIENTE</td></tr><tr><td><strong>1-80-951</strong></td><td>846-NESTLE BRASIL LTDA</td><td>geovana.silva</td><td>pedágio incorreto</td><td>0,00</td><td>FATURAMENTO</td></tr><tr><td><strong>1-80-952</strong></td><td>846-NESTLE BRASIL LTDA</td><td>geovana.silva</td><td>Sem preenchimento</td><td>0,00</td><td>FATURAMENTO/CLIENTE</td></tr><tr><td><strong>5-81-55</strong></td><td>38264-STELLA D ORO ALIMENTOS LTDA</td><td>matheus.devise</td><td>valor incorreto</td><td>0,00</td><td>FATURAMENTO</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -195,30 +905,30 @@
 
     <section id="clientes" class="view">
       <div class="grid grid-2">
-        <div class="card"><h3>Cliente x quantidade refaturada</h3><div class="chart-box"><canvas id="chartClienteQtd"></canvas></div></div>
-        <div class="card"><h3>Cliente x valor refaturado</h3><div class="sub">Soma do débito vinculado aos refaturados.</div><div class="chart-box"><canvas id="chartClienteValor"></canvas></div></div>
+        <div class="card"><h3>Cliente x quantidade refaturada</h3><div class="chart-box"><canvas id="chartClienteQtd" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
+        <div class="card"><h3>Cliente x valor refaturado</h3><div class="sub">Soma do débito vinculado aos refaturados.</div><div class="chart-box"><canvas id="chartClienteValor" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
       </div>
       <div class="grid grid-2" style="margin-top:16px;">
-        <div class="card"><h3>Cliente x principal motivo</h3><div class="chart-box"><canvas id="chartClienteMotivo"></canvas></div></div>
-        <div class="card"><h3>Tabela de clientes</h3><div class="table-wrap"><table><thead><tr><th>Cliente agrupado</th><th>Qtd.</th><th>Valor refaturado</th><th>Principal motivo</th></tr></thead><tbody id="tbodyClientes"></tbody></table></div></div>
+        <div class="card"><h3>Cliente x principal motivo</h3><div class="chart-box"><canvas id="chartClienteMotivo" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
+        <div class="card"><h3>Tabela de clientes</h3><div class="table-wrap"><table><thead><tr><th>Cliente agrupado</th><th>Qtd.</th><th>Valor refaturado</th><th>Principal motivo</th></tr></thead><tbody id="tbodyClientes"><tr><td>NESTLE</td><td>15</td><td>107.304,11</td><td>pis/cofins</td></tr><tr><td>-H J SANTA FE COMERCIAL E AGRICOLA</td><td>2</td><td>44.400,00</td><td>nota fiscal indevida</td></tr><tr><td>-H J SANTA FE E AGRICOLA</td><td>1</td><td>22.200,00</td><td>nota fiscal indevida</td></tr><tr><td>-AJINOMOTO BRASIL E DE</td><td>1</td><td>8.790,57</td><td>filial incorreta</td></tr><tr><td>-FERRERO BRASIL DOCEIRA E ALIMENTAR</td><td>1</td><td>4.625,86</td><td>valor incorreto</td></tr><tr><td>STELLA D ORO</td><td>3</td><td>2.806,45</td><td>nota fiscal indevida</td></tr><tr><td>-BRF S.A.</td><td>1</td><td>1.591,84</td><td>valor incorreto</td></tr><tr><td>COLGATE</td><td>1</td><td>1.018,23</td><td>valor incorreto</td></tr></tbody></table></div></div>
       </div>
     </section>
 
     <section id="setores" class="view">
       <div class="grid grid-2">
-        <div class="card"><h3>Setor x valor refaturado</h3><div class="sub">Soma de frete_substituto por setor do reduzido.</div><div class="chart-box"><canvas id="chartSetorRef"></canvas></div></div>
-        <div class="card"><h3>Setor x valor substituto</h3><div class="sub">Soma de frete_refaturado por setor do reduzido.</div><div class="chart-box"><canvas id="chartSetorSub"></canvas></div></div>
+        <div class="card"><h3>Setor x valor refaturado</h3><div class="sub">Soma de frete_substituto por setor do reduzido.</div><div class="chart-box"><canvas id="chartSetorRef" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
+        <div class="card"><h3>Setor x valor substituto</h3><div class="sub">Soma de frete_refaturado por setor do reduzido.</div><div class="chart-box"><canvas id="chartSetorSub" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
       </div>
       <div class="grid grid-2" style="margin-top:16px;">
-        <div class="card"><h3>Setor x valor total</h3><div class="sub">Refaturado + substituto por setor.</div><div class="chart-box"><canvas id="chartSetorTotal"></canvas></div></div>
-        <div class="card"><h3>Tabela por setor</h3><div class="table-wrap"><table><thead><tr><th>Setor</th><th>Qtd. refaturados</th><th>Valor refaturado</th><th>Qtd. substitutos</th><th>Valor substituto</th><th>Valor total</th></tr></thead><tbody id="tbodySetores"></tbody></table></div></div>
+        <div class="card"><h3>Setor x valor total</h3><div class="sub">Refaturado + substituto por setor.</div><div class="chart-box"><canvas id="chartSetorTotal" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
+        <div class="card"><h3>Tabela por setor</h3><div class="table-wrap"><table><thead><tr><th>Setor</th><th>Qtd. refaturados</th><th>Valor refaturado</th><th>Qtd. substitutos</th><th>Valor substituto</th><th>Valor total</th></tr></thead><tbody id="tbodySetores"><tr><td>CLIENTE</td><td>6</td><td>109.466,57</td><td>3</td><td>33.789,30</td><td>143.255,87</td></tr><tr><td>COMERCIAL</td><td>0</td><td>0,00</td><td>2</td><td>82.173,52</td><td>82.173,52</td></tr><tr><td>FATURAMENTO</td><td>8</td><td>39.504,81</td><td>13</td><td>151.115,63</td><td>190.620,44</td></tr><tr><td>FINANCEIRO</td><td>1</td><td>75,00</td><td>0</td><td>0,00</td><td>75,00</td></tr><tr><td>PCO</td><td>5</td><td>7.057,82</td><td>0</td><td>0,00</td><td>7.057,82</td></tr></tbody></table></div></div>
       </div>
       <div class="grid grid-2" style="margin-top:16px;">
-        <div class="card"><h3>Quantitativo refaturado por setor</h3><div class="sub">Total de linhas refaturadas por setor.</div><div class="chart-box"><canvas id="chartRefQtySetor"></canvas></div></div>
-        <div class="card"><h3>Quantitativo substituto por setor</h3><div class="sub">Total de linhas substitutas por setor.</div><div class="chart-box"><canvas id="chartSubQtySetor"></canvas></div></div>
+        <div class="card"><h3>Quantitativo refaturado por setor</h3><div class="sub">Total de linhas refaturadas por setor.</div><div class="chart-box"><canvas id="chartRefQtySetor" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
+        <div class="card"><h3>Quantitativo substituto por setor</h3><div class="sub">Total de linhas substitutas por setor.</div><div class="chart-box"><canvas id="chartSubQtySetor" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
       </div>
       <div class="grid grid-2" style="margin-top:16px;">
-        <div class="card"><h3>Reduzido quantitativo dos setores</h3><div class="sub">Quantidade por setor no campo reduzido.</div><div class="chart-box"><canvas id="chartReduzidoQtdSetor"></canvas></div></div>
+        <div class="card"><h3>Reduzido quantitativo dos setores</h3><div class="sub">Quantidade por setor no campo reduzido.</div><div class="chart-box"><canvas id="chartReduzidoQtdSetor" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div></div>
         <div class="card"><h3>Observação</h3><div class="sub">Quando um registro tiver dois setores no campo reduzido, o valor do substituto é dividido igualmente entre eles.</div><div class="box-info">Exemplo: FATURAMENTO/COMERCIAL com valor 5.113,64 vira 2.556,82 para FATURAMENTO e 2.556,82 para COMERCIAL.</div></div>
       </div>
       <div class="card" style="margin-top:16px;">
@@ -229,23 +939,23 @@
           </div>
           <div class="field" style="max-width:260px; min-width:180px;">
             <label>Setor</label>
-            <select id="setorReasonSelect"></select>
+            <select id="setorReasonSelect"><option value="TODOS">Todos</option><option value="CLIENTE">CLIENTE</option><option value="COMERCIAL">COMERCIAL</option><option value="FATURAMENTO">FATURAMENTO</option><option value="FINANCEIRO">FINANCEIRO</option><option value="PCO">PCO</option></select>
           </div>
         </div>
         <div class="grid grid-2" style="margin-top:12px;">
           <div class="card" style="padding:14px;">
             <h3 style="font-size:18px;">Motivos por quantidade</h3>
-            <div class="chart-box"><canvas id="chartSetorMotivosQtd"></canvas></div>
+            <div class="chart-box"><canvas id="chartSetorMotivosQtd" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
           </div>
           <div class="card" style="padding:14px;">
             <h3 style="font-size:18px;">Motivos por valor</h3>
-            <div class="chart-box"><canvas id="chartSetorMotivosValor"></canvas></div>
+            <div class="chart-box"><canvas id="chartSetorMotivosValor" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
           </div>
         </div>
         <div class="table-wrap" style="margin-top:16px;">
           <table>
             <thead><tr><th>CTE</th><th>Cliente</th><th>Setor</th><th>Motivo</th><th>Valor em erro</th><th>Usuário</th></tr></thead>
-            <tbody id="tbodySetoresMotivos"></tbody>
+            <tbody id="tbodySetoresMotivos"><tr><td><strong>1-80-947</strong></td><td>27155-H J SANTA FÉ COMERCIAL E AGRÍCOLA LTDA</td><td>CLIENTE</td><td>nota fiscal indevida</td><td>24.200,00</td><td>ademir.fernandes</td></tr><tr><td><strong>1-80-948</strong></td><td>55909-H J SANTA FE COMERCIO E AGRICOLA LTDA</td><td>CLIENTE</td><td>nota fiscal indevida</td><td>22.200,00</td><td>ademir.fernandes</td></tr><tr><td><strong>1-80-946</strong></td><td>27155-H J SANTA FÉ COMERCIAL E AGRÍCOLA LTDA</td><td>CLIENTE</td><td>nota fiscal indevida</td><td>20.200,00</td><td>ademir.fernandes</td></tr><tr><td><strong>5-80-1149</strong></td><td>5358-NESTLE NORDESTE ALIMENTOS E BEBIDAS LTDA</td><td>FATURAMENTO</td><td>nota fiscal de pallet</td><td>10.527,45</td><td>karoline.romanini</td></tr><tr><td><strong>5-80-1153</strong></td><td>303-Nestle Brasil Ltda.</td><td>FATURAMENTO</td><td>pis/cofins</td><td>10.527,45</td><td>karoline.romanini</td></tr><tr><td><strong>5-80-1155</strong></td><td>303-Nestle Brasil Ltda.</td><td>FATURAMENTO</td><td>pis/cofins</td><td>10.527,45</td><td>karoline.romanini</td></tr><tr><td><strong>7-80-333</strong></td><td>48766-AJINOMOTO DO BRASIL INDUSTRIA E COMERCIO DE ALIMENTOS LTDA</td><td>FATURAMENTO</td><td>filial incorreta</td><td>9.989,28</td><td>tiago.carniel</td></tr><tr><td><strong>1-80-949</strong></td><td>7403-NESTLE BRASIL LTDA</td><td>FATURAMENTO</td><td>nota fiscal indevida</td><td>5.263,73</td><td>karoline.romanini</td></tr><tr><td><strong>1-80-949</strong></td><td>7403-NESTLE BRASIL LTDA</td><td>CLIENTE</td><td>nota fiscal indevida</td><td>5.263,73</td><td>karoline.romanini</td></tr><tr><td><strong>5-81-49</strong></td><td>42409-COLGATE-PALMOLIVE COMERCIAL LTDA</td><td>FATURAMENTO</td><td>valor incorreto</td><td>5.263,73</td><td>karoline.romanini</td></tr><tr><td><strong>5-81-49</strong></td><td>42409-COLGATE-PALMOLIVE COMERCIAL LTDA</td><td>PCO</td><td>valor incorreto</td><td>5.263,73</td><td>karoline.romanini</td></tr><tr><td><strong>5-80-1154</strong></td><td>303-Nestle Brasil Ltda.</td><td>FATURAMENTO</td><td>pis/cofins</td><td>381,48</td><td>tiago.carniel</td></tr><tr><td><strong>5-81-53</strong></td><td>303-Nestle Brasil Ltda.</td><td>FATURAMENTO</td><td>Sem preenchimento</td><td>381,48</td><td>multisoft.service</td></tr><tr><td><strong>5-80-1152</strong></td><td>300-Nestle Brasil Ltda.</td><td>FATURAMENTO</td><td>nota fiscal de pallet</td><td>190,74</td><td>multisoft.service</td></tr><tr><td><strong>5-80-1152</strong></td><td>300-Nestle Brasil Ltda.</td><td>CLIENTE</td><td>nota fiscal de pallet</td><td>190,74</td><td>multisoft.service</td></tr><tr><td><strong>1-80-953</strong></td><td>7403-NESTLE BRASIL LTDA</td><td>CLIENTE</td><td>nota fiscal indevida</td><td>0,00</td><td>matheus.devise</td></tr><tr><td><strong>5-80-1156</strong></td><td>303-Nestle Brasil Ltda.</td><td>CLIENTE</td><td>nota fiscal indevida</td><td>0,00</td><td>tayner.percio</td></tr><tr><td><strong>5-81-50</strong></td><td>38264-STELLA D ORO ALIMENTOS LTDA</td><td>FATURAMENTO</td><td>nota fiscal indevida</td><td>0,00</td><td>matheus.devise</td></tr><tr><td><strong>5-81-51</strong></td><td>38264-STELLA D ORO ALIMENTOS LTDA</td><td>FATURAMENTO</td><td>nota fiscal indevida</td><td>0,00</td><td>matheus.devise</td></tr><tr><td><strong>5-80-1150</strong></td><td>10168-NESTLE BRASIL LTDA</td><td>FATURAMENTO/CLIENTE</td><td>pagador incorreto</td><td>0,00</td><td>geovana.silva</td></tr><tr><td><strong>5-80-1150</strong></td><td>10168-NESTLE BRASIL LTDA</td><td>FATURAMENTO</td><td>pagador incorreto</td><td>0,00</td><td>geovana.silva</td></tr><tr><td><strong>5-80-1150</strong></td><td>10168-NESTLE BRASIL LTDA</td><td>CLIENTE</td><td>pagador incorreto</td><td>0,00</td><td>geovana.silva</td></tr><tr><td><strong>5-80-1151</strong></td><td>837-NESTLE BRASIL LTDA.</td><td>CLIENTE</td><td>pagador incorreto</td><td>0,00</td><td>multisoft.service</td></tr><tr><td><strong>1-80-951</strong></td><td>846-NESTLE BRASIL LTDA</td><td>FATURAMENTO</td><td>pedágio incorreto</td><td>0,00</td><td>geovana.silva</td></tr><tr><td><strong>1-80-950</strong></td><td>7403-NESTLE BRASIL LTDA</td><td>CLIENTE</td><td>Sem preenchimento</td><td>0,00</td><td>tayner.percio</td></tr><tr><td><strong>1-80-952</strong></td><td>846-NESTLE BRASIL LTDA</td><td>FATURAMENTO/CLIENTE</td><td>Sem preenchimento</td><td>0,00</td><td>geovana.silva</td></tr><tr><td><strong>1-80-952</strong></td><td>846-NESTLE BRASIL LTDA</td><td>FATURAMENTO</td><td>Sem preenchimento</td><td>0,00</td><td>geovana.silva</td></tr><tr><td><strong>1-80-952</strong></td><td>846-NESTLE BRASIL LTDA</td><td>CLIENTE</td><td>Sem preenchimento</td><td>0,00</td><td>geovana.silva</td></tr><tr><td><strong>5-81-52</strong></td><td>284-NESTLE BRASIL LTDA</td><td>PCO</td><td>Sem preenchimento</td><td>0,00</td><td>importa_xml</td></tr><tr><td><strong>1-81-26</strong></td><td>792-BRF S.A.</td><td>PCO</td><td>valor incorreto</td><td>0,00</td><td>multisoft.service</td></tr><tr><td><strong>5-81-55</strong></td><td>38264-STELLA D ORO ALIMENTOS LTDA</td><td>FATURAMENTO</td><td>valor incorreto</td><td>0,00</td><td>matheus.devise</td></tr><tr><td><strong>7-80-334</strong></td><td>584-FERRERO DO BRASIL INDUSTRIA DOCEIRA E ALIMENTAR LTDA</td><td>PCO</td><td>valor incorreto</td><td>0,00</td><td>matheus.devise</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -263,27 +973,27 @@
             </div>
             <div class="field" style="max-width:220px; min-width:180px;">
               <label>Usuário</label>
-              <select id="performanceUserSelect"></select>
+              <select id="performanceUserSelect"><option value="TODOS">Todos</option><option value="ademir.fernandes">ademir.fernandes</option><option value="angelita.santos">angelita.santos</option><option value="geovana.silva">geovana.silva</option><option value="josete.gabriel">josete.gabriel</option><option value="karllin">karllin</option><option value="karoline.romanini">karoline.romanini</option><option value="tiago.carniel">tiago.carniel</option><option value="angelica.lucca">angelica.lucca</option></select>
             </div>
           </div>
-          <div class="chart-box"><canvas id="chartProdUsuarioMes"></canvas></div>
+          <div class="chart-box"><canvas id="chartProdUsuarioMes" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
         </div>
         <div class="card">
           <h3>Tipos de documento no mês por usuário</h3>
           <div class="sub">Distribuição entre CTRC, Manifesto, NF.fat e OST.</div>
-          <div class="chart-box"><canvas id="chartProdTiposMes"></canvas></div>
+          <div class="chart-box"><canvas id="chartProdTiposMes" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
         </div>
       </div>
       <div class="grid grid-2" style="margin-top:16px;">
         <div class="card">
           <h3>Performance % por usuário</h3>
           <div class="sub">Percentual positivo com base no erro do operador: 100 - ((erros × 100) / (CTRC + OST)).</div>
-          <div class="chart-box"><canvas id="chartPerformance"></canvas></div>
+          <div class="chart-box"><canvas id="chartPerformance" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
         </div>
         <div class="card">
           <h3>Faixa de performance</h3>
           <div class="sub">Ótimo 99,51 a 100, Regular 97 a 99,50 e Ruim 90 a 96,9.</div>
-          <div class="chart-box"><canvas id="chartPerformancePie"></canvas></div>
+          <div class="chart-box"><canvas id="chartPerformancePie" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
         </div>
       </div>
     </section>
@@ -293,23 +1003,23 @@
         <div class="card">
           <h3>Análise anual</h3>
           <div class="sub">Importe um mês por vez e salve na base anual.</div>
-          <div class="chart-box"><canvas id="chartAnnualTotals"></canvas></div>
+          <div class="chart-box"><canvas id="chartAnnualTotals" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
         </div>
         <div class="card">
           <h3>Setor no ano</h3>
           <div class="sub">Selecione um setor para ver refaturado, substituto e total por mês.</div>
           <div class="field" style="max-width:260px; margin-bottom:12px;">
             <label>Setor</label>
-            <select id="annualSectorSelect"></select>
+            <select id="annualSectorSelect"><option value="">Todos</option><option value="CLIENTE">CLIENTE</option><option value="COMERCIAL">COMERCIAL</option><option value="FATURAMENTO">FATURAMENTO</option><option value="FINANCEIRO">FINANCEIRO</option><option value="PCO">PCO</option><option value="RODOPAR">RODOPAR</option></select>
           </div>
-          <div class="chart-box"><canvas id="chartAnnualSector"></canvas></div>
+          <div class="chart-box"><canvas id="chartAnnualSector" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
         </div>
       </div>
 
       <div class="card" style="margin-top:16px;">
         <h3>Documentos anuais</h3>
         <div class="sub">Quantidade total de documentos por mês no Excel de produtividade.</div>
-        <div class="chart-box"><canvas id="chartAnnualProd"></canvas></div>
+        <div class="chart-box"><canvas id="chartAnnualProd" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
       </div>
 
       <div class="card" style="margin-top:16px;">
@@ -318,18 +1028,333 @@
         <div class="table-wrap compact">
           <table>
             <thead><tr><th>Mês</th><th>Refaturado</th><th>Substituto</th><th>Total</th><th>Documentos</th><th>Ação</th></tr></thead>
-            <tbody id="tbodyAnnualMonths"></tbody>
+            <tbody id="tbodyAnnualMonths">
+      <tr>
+        <td>Jan/2026</td>
+        <td>853.312,28</td>
+        <td>320.871,47</td>
+        <td>1.174.183,75</td>
+        <td>6038</td>
+        <td><button class="btn small secondary" data-key="2026-01">Consultar</button> <button class="btn small secondary" data-remove-key="2026-01">Remover</button></td>
+      </tr>
+      <tr>
+        <td>Fev/2026</td>
+        <td>1.082.913,89</td>
+        <td>762.106,41</td>
+        <td>1.845.020,30</td>
+        <td>6390</td>
+        <td><button class="btn small secondary" data-key="2026-02">Consultar</button> <button class="btn small secondary" data-remove-key="2026-02">Remover</button></td>
+      </tr>
+      <tr>
+        <td>Mar/2026</td>
+        <td>894.217,11</td>
+        <td>283.322,10</td>
+        <td>1.177.539,21</td>
+        <td>6038</td>
+        <td><button class="btn small secondary" data-key="2026-03">Consultar</button> <button class="btn small secondary" data-remove-key="2026-03">Remover</button></td>
+      </tr>
+      <tr>
+        <td>Abr/2026</td>
+        <td>156.104,20</td>
+        <td>267.078,45</td>
+        <td>423.182,65</td>
+        <td>0</td>
+        <td><button class="btn small secondary" data-key="2026-04">Consultar</button> <button class="btn small secondary" data-remove-key="2026-04">Remover</button></td>
+      </tr>
+      <tr>
+        <td>Mai/2026</td>
+        <td>156.104,20</td>
+        <td>267.078,45</td>
+        <td>423.182,65</td>
+        <td>0</td>
+        <td><button class="btn small secondary" data-key="2026-05">Consultar</button> <button class="btn small secondary" data-remove-key="2026-05">Remover</button></td>
+      </tr></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <section id="cadastro" class="view">
+    <section id="cadastro" class="view active">
       <div class="card">
         <h3>Cadastro manual por refaturado</h3>
         <div class="sub">O motivo tenta vir automático do Excel.</div>
         <div class="table-wrap">
-          <table><thead><tr><th>CTE</th><th>Cliente</th><th>Data baixa</th><th>Solicitação</th><th>Motivo</th><th>Detalhamento</th><th>Auditoria</th><th>Salvar</th></tr></thead><tbody id="tbodyCadastro"></tbody></table>
+          <table><thead><tr><th>CTE</th><th>Cliente</th><th>Data baixa</th><th>Solicitação</th><th>Motivo</th><th>Detalhamento</th><th>Auditoria</th><th>Salvar</th></tr></thead><tbody id="tbodyCadastro">
+      <tr>
+        <td><strong>5-81-49</strong></td>
+        <td>42409-COLGATE-PALMOLIVE COMERCIAL LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-81-49" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-81-49" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto" selected="">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-81-49" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-81-49" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-81-49">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-80-1149</strong></td>
+        <td>5358-NESTLE NORDESTE ALIMENTOS E BEBIDAS LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-80-1149" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-80-1149" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet" selected="">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-80-1149" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-80-1149" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-80-1149">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-81-50</strong></td>
+        <td>38264-STELLA D ORO ALIMENTOS LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-81-50" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-81-50" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida" selected="">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-81-50" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-81-50" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-81-50">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-81-51</strong></td>
+        <td>38264-STELLA D ORO ALIMENTOS LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-81-51" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-81-51" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida" selected="">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-81-51" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-81-51" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-81-51">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-81-52</strong></td>
+        <td>284-NESTLE BRASIL LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-81-52" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-81-52" data-field="reason"><option value="" selected="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-81-52" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-81-52" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-81-52">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-81-53</strong></td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-81-53" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-81-53" data-field="reason"><option value="" selected="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-81-53" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-81-53" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-81-53">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>1-80-946</strong></td>
+        <td>27155-H J SANTA FÉ COMERCIAL E AGRÍCOLA LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="1-80-946" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="1-80-946" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida" selected="">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="1-80-946" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="1-80-946" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="1-80-946">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>1-80-947</strong></td>
+        <td>27155-H J SANTA FÉ COMERCIAL E AGRÍCOLA LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="1-80-947" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="1-80-947" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida" selected="">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="1-80-947" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="1-80-947" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="1-80-947">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>1-80-948</strong></td>
+        <td>55909-H J SANTA FE COMERCIO E AGRICOLA LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="1-80-948" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="1-80-948" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida" selected="">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="1-80-948" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="1-80-948" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="1-80-948">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>1-80-949</strong></td>
+        <td>7403-NESTLE BRASIL LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="1-80-949" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="1-80-949" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida" selected="">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="1-80-949" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="1-80-949" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="1-80-949">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>1-80-950</strong></td>
+        <td>7403-NESTLE BRASIL LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="1-80-950" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="1-80-950" data-field="reason"><option value="" selected="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="1-80-950" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="1-80-950" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="1-80-950">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>7-80-333</strong></td>
+        <td>48766-AJINOMOTO DO BRASIL INDUSTRIA E COMERCIO DE ALIMENTOS LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="7-80-333" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="7-80-333" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta" selected="">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="7-80-333" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="7-80-333" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="7-80-333">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>7-80-334</strong></td>
+        <td>584-FERRERO DO BRASIL INDUSTRIA DOCEIRA E ALIMENTAR LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="7-80-334" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="7-80-334" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto" selected="">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="7-80-334" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="7-80-334" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="7-80-334">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>1-80-951</strong></td>
+        <td>846-NESTLE BRASIL LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="1-80-951" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="1-80-951" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto" selected="">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="1-80-951" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="1-80-951" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="1-80-951">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-80-1150</strong></td>
+        <td>10168-NESTLE BRASIL LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-80-1150" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-80-1150" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto" selected="">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-80-1150" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-80-1150" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-80-1150">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-80-1151</strong></td>
+        <td>837-NESTLE BRASIL LTDA.</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-80-1151" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-80-1151" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto" selected="">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-80-1151" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-80-1151" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-80-1151">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>1-80-952</strong></td>
+        <td>846-NESTLE BRASIL LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="1-80-952" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="1-80-952" data-field="reason"><option value="" selected="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="1-80-952" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="1-80-952" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="1-80-952">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-80-1152</strong></td>
+        <td>300-Nestle Brasil Ltda.</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-80-1152" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-80-1152" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet" selected="">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-80-1152" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-80-1152" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-80-1152">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-80-1153</strong></td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-80-1153" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-80-1153" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins" selected="">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-80-1153" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-80-1153" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-80-1153">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>1-80-953</strong></td>
+        <td>7403-NESTLE BRASIL LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="1-80-953" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="1-80-953" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida" selected="">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="1-80-953" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="1-80-953" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="1-80-953">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-80-1154</strong></td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-80-1154" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-80-1154" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins" selected="">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-80-1154" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-80-1154" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-80-1154">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-80-1155</strong></td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-80-1155" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-80-1155" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins" selected="">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-80-1155" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-80-1155" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-80-1155">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>1-81-26</strong></td>
+        <td>792-BRF S.A.</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="1-81-26" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="1-81-26" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto" selected="">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="1-81-26" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="1-81-26" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="1-81-26">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-80-1156</strong></td>
+        <td>303-Nestle Brasil Ltda.</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-80-1156" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-80-1156" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida" selected="">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-80-1156" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-80-1156" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-80-1156">Salvar</button></td>
+      </tr>
+    
+      <tr>
+        <td><strong>5-81-55</strong></td>
+        <td>38264-STELLA D ORO ALIMENTOS LTDA</td>
+        <td>-</td>
+        <td><input type="date" class="manual-input" data-cte="5-81-55" data-field="requestDate" value=""></td>
+        <td><select class="manual-input" data-cte="5-81-55" data-field="reason"><option value="">Selecione</option><option value="valor incorreto na tabela">valor incorreto na tabela</option><option value="valor incorreto" selected="">valor incorreto</option><option value="filial incorreta">filial incorreta</option><option value="CNPJ invertido">CNPJ invertido</option><option value="série incorreta">série incorreta</option><option value="pagador incorreto">pagador incorreto</option><option value="observação incorreta">observação incorreta</option><option value="emissão indevida">emissão indevida</option><option value="imposto incorreto">imposto incorreto</option><option value="remetente incorreto">remetente incorreto</option><option value="destinatário incorreto">destinatário incorreto</option><option value="nota fiscal indevida">nota fiscal indevida</option><option value="nota fiscal de pallet">nota fiscal de pallet</option><option value="falta de nota fiscal">falta de nota fiscal</option><option value="advalorem">advalorem</option><option value="pedágio incorreto">pedágio incorreto</option><option value="pis/cofins">pis/cofins</option><option value="rateio incorreto">rateio incorreto</option><option value="carga de rechaço">carga de rechaço</option><option value="carga cancelada">carga cancelada</option><option value="tipo de cte incorreto">tipo de cte incorreto</option></select></td>
+        <td><input class="manual-input" data-cte="5-81-55" data-field="detail" value="" placeholder="Detalhar"></td>
+        <td><select class="manual-input" data-cte="5-81-55" data-field="audit"><option value="nao" selected="">Não</option><option value="sim">Sim</option></select></td>
+        <td><button class="btn small btn-save-manual" data-cte="5-81-55">Salvar</button></td>
+      </tr>
+    </tbody></table>
         </div>
       </div>
     </section>
@@ -338,7 +1363,7 @@
       <div class="grid grid-2">
         <div class="card">
           <h3>Importar Excel</h3>
-          <div class="field"><label>Arquivo</label><input type="file" id="excelUpload" accept=".xls,.xlsx,.csv" /></div>
+          <div class="field"><label>Arquivo</label><input type="file" id="excelUpload" accept=".xls,.xlsx,.csv"></div>
           <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:10px; margin-top:14px; align-items:end;">
             <div class="field"><label>Mês</label><select id="annualMonth"><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select></div>
             <div class="field"><label>Ano</label><input id="annualYear" type="number" value="2026"></div>
@@ -349,14 +1374,14 @@
           </div>
           <div id="importMsg" class="box-info" style="margin-top:14px;">Nenhum arquivo importado.</div>
         </div>
-        <div class="card"><h3>Console do parser</h3><textarea id="logBox" readonly></textarea></div>
+        <div class="card"><h3>Console do parser</h3><textarea id="logBox" readonly=""></textarea></div>
       </div>
       
       <div class="grid grid-2" style="margin-top:16px;">
         <div class="card">
           <h3>Importar Excel de produtividade</h3>
           <div class="sub">Usado para a aba Performance Usuários e para Documentos anuais. A conta anual considera CTRC + OST.</div>
-          <div class="field"><label>Arquivo</label><input type="file" id="prodExcelUpload" accept=".xls,.xlsx,.csv" /></div>
+          <div class="field"><label>Arquivo</label><input type="file" id="prodExcelUpload" accept=".xls,.xlsx,.csv"></div>
           <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:10px; margin-top:14px; align-items:end;">
             <div class="field"><label>Mês produtividade</label><select id="prodMonth"><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select></div>
             <div class="field"><label>Ano produtividade</label><input id="prodYear" type="number" value="2026"></div>
@@ -369,9 +1394,9 @@
           <div class="sub">A URL e a key ficam dentro do HTML. Use somente o botão para sincronizar o mês salvo.</div>
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
             <button class="btn secondary" id="btnSyncSupabase">Sincronizar</button>
-          </div>
-          <div id="syncStatus" class="box-info" style="margin-top:14px;">Configure a Supabase no script e clique em Sincronizar.</div>
-          <textarea readonly style="margin-top:14px; min-height:170px;">SQL inicial:
+          <button class="btn secondary" id="btnExportExcel" type="button">Extrair Excel</button></div>
+          <div id="syncStatus" class="box-info" style="margin-top:14px;">Mês 04/2026 carregado da Supabase.</div>
+          <textarea readonly="" style="margin-top:14px; min-height:170px;">SQL inicial:
 create extension if not exists "uuid-ossp";
 
 create table if not exists refaturamento (
@@ -1147,6 +2172,55 @@ function inferReasonFromText(text){
 }
 function getManual(cte){ return state.manual[cte] || {}; }
 function saveManual(cte, payload){ state.manual[cte] = {...(state.manual[cte] || {}), ...payload}; writeStorage('painel_ref_manual_v30', state.manual); }
+function mapManualRowFromSupabase(row){
+  if(!row) return null;
+  const cte = String(row.documento || row.cte || '').trim();
+  if(!cte) return null;
+  return {
+    cte,
+    payload: {
+      requestDate: row.request_date || row.requestDate || row.solicitacao || row.solicitacao_data || '',
+      reason: row.motivo || row.reason || '',
+      detail: row.detalhamento || row.detail || '',
+      audit: (row.auditoria || row.audit || 'nao').toString().toLowerCase() === 'sim' ? 'sim' : 'nao'
+    }
+  };
+}
+async function loadManualFromSupabase(){
+  if(!ensureSupabaseConnected()) return false;
+  const { data, error } = await state.supabase.from('refaturamento_manual').select('*');
+  if(error){
+    console.error('Erro carregando refaturamento_manual:', error);
+    return false;
+  }
+  (data || []).forEach(row => {
+    const mapped = mapManualRowFromSupabase(row);
+    if(mapped) saveManual(mapped.cte, mapped.payload);
+  });
+  return true;
+}
+async function saveManualToSupabase(cte, payload){
+  if(!ensureSupabaseConnected()) return { ok:false, message:'Supabase não configurada.' };
+  const baseRow = {
+    documento: String(cte || '').trim(),
+    motivo: String(payload.reason || '').trim(),
+    detalhamento: String(payload.detail || '').trim(),
+    auditoria: (String(payload.audit || 'nao').toLowerCase() === 'sim') ? 'sim' : 'nao'
+  };
+  let { error } = await state.supabase.from('refaturamento_manual').upsert([{
+    ...baseRow,
+    request_date: payload.requestDate || null
+  }], { onConflict: 'documento' });
+  if(error && /request_date|column/i.test(String(error.message || ''))){
+    const retry = await state.supabase.from('refaturamento_manual').upsert([baseRow], { onConflict: 'documento' });
+    error = retry.error || null;
+  }
+  if(error){
+    console.error('Erro salvando refaturamento_manual:', error);
+    return { ok:false, message:error.message || 'Erro ao salvar na Supabase.' };
+  }
+  return { ok:true };
+}
 function destroyChart(name){ if(state.charts[name]) state.charts[name].destroy(); }
 function makeBarChart(id, labels, data, horizontal=false, label='Valor'){
   destroyChart(id);
@@ -2395,7 +3469,7 @@ function bindFilters(){
   });
 }
 function bindManualSave(){
-  document.addEventListener('click', function(e){
+  document.addEventListener('click', async function(e){
     const btn = e.target.closest('.btn-save-manual');
     if(!btn) return;
     const cte = btn.getAttribute('data-cte');
@@ -2403,8 +3477,15 @@ function bindManualSave(){
     const payload = {};
     fields.forEach(field => { payload[field.getAttribute('data-field')] = field.value; });
     saveManual(cte, payload);
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    const result = await saveManualToSupabase(cte, payload);
+    btn.disabled = false;
+    btn.textContent = originalText;
     renderAll();
-    alert('Cadastro salvo com sucesso.');
+    if(result.ok) alert('Cadastro salvo com sucesso.');
+    else alert('Salvou localmente, mas falhou na Supabase: ' + result.message);
   });
 }
 function bindConfigActions(){
@@ -2528,6 +3609,7 @@ function bindProdExcelImport(){
 async function bootstrap(){
   document.getElementById('reasonBox').value = state.reasons.join('\n');
   connectSupabase();
+  await loadManualFromSupabase();
   renderAll();
   await fetchRemoteMonthKeys();
 }
@@ -3256,5 +4338,6 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('btnExportExcel')?.addEventListener('click', exportPainelExcel);
 });
 </script>
-</body>
-</html>
+
+
+</body></html>
