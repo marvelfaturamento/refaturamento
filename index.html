@@ -810,7 +810,7 @@ async function loadMonthFromSupabase(monthKey){
 
   state.sheets = ['supabase'];
   state.refaturados = refRows.map(r => ({
-    dataRefaturado: '',
+  dataRefaturado: `${ano}-${mes}-01`,
     tomadorRefaturado: r.cliente || '',
     refaturado: r.documento || '',
     freteRefaturado: parseNumber(r.frete_refaturado || 0),
@@ -828,8 +828,8 @@ async function loadMonthFromSupabase(monthKey){
     userSetor: r.operador || '',
     setorLancamento: r.setor || ''
   }));
-  state.substitutos = subRows.map(r => ({
-    dataSubstituto: '',
+  sstate.substitutos = subRows.map(r => ({
+  dataSubstituto: `${ano}-${mes}-01`,
     tomadorSubstituto: r.cliente || '',
     substituto: r.documento || '',
     freteSubstituto: parseNumber(r.frete_substituto || 0),
