@@ -1150,62 +1150,82 @@ function saveManual(cte, payload){
   state.manual[cte] = { ...(state.manual[cte] || {}), ...(payload || {}) };
   writeStorage('painel_ref_manual_v30', state.manual);
 }
+
+function toSqlDate(brDate){
+  const v = String(brDate || '').trim();
+  if(!v) return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return null;
+}
+
 function mapManualRowFromSupabase(row){
   if(!row) return null;
   const cte = String(row.documento || row.cte || '').trim();
   if(!cte) return null;
+
+  let requestDate = '';
+  if(row.solicitacao){
+    const parts = String(row.solicitacao).split('-');
+    if(parts.length === 3){
+      requestDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+  }
+
   return {
     cte,
     payload: {
-      requestDate: row.request_date || row.requestDate || row.solicitacao || row.solicitacao_data || '',
-      reason: row.motivo || row.reason || '',
-      detail: row.detalhamento || row.detail || '',
-      audit: String(row.auditoria || row.audit || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
+      requestDate,
+      reason: row.motivo || '',
+      detail: row.detalhamento || '',
+      audit: String(row.auditoria || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
     }
   };
 }
+
 async function loadManualFromSupabase(){
   if(!ensureSupabaseConnected()) return false;
   const { data, error } = await state.supabase
     .from('refaturamento_manual')
     .select('*');
+
   if(error){
     console.error('Erro carregando refaturamento_manual:', error);
     return false;
   }
+
   (data || []).forEach(row => {
     const mapped = mapManualRowFromSupabase(row);
     if(mapped) saveManual(mapped.cte, mapped.payload);
   });
+
   return true;
 }
-async function saveManualToSupabase(cte, payload){
-  if(!ensureSupabaseConnected()) return { ok:false, message:'Supabase não configurada.' };
 
-  const baseRow = {
+async function saveManualToSupabase(cte, payload){
+  if(!ensureSupabaseConnected()){
+    return { ok:false, message:'Supabase não configurada.' };
+  }
+
+  const row = {
     documento: String(cte || '').trim(),
+    solicitacao: toSqlDate(payload.requestDate),
     motivo: String(payload.reason || '').trim(),
     detalhamento: String(payload.detail || '').trim(),
     auditoria: String(payload.audit || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
   };
 
-  const rowWithDate = { ...baseRow, request_date: payload.requestDate || null };
-  let res = await state.supabase
+  const res = await state.supabase
     .from('refaturamento_manual')
-    .upsert([rowWithDate], { onConflict:'documento' });
+    .upsert([row], { onConflict:'documento' });
 
-  if(!res.error) return { ok:true };
-
-  const msg = String(res.error.message || '');
-  if(msg.includes('request_date') || msg.includes('column')){
-    res = await state.supabase
-      .from('refaturamento_manual')
-      .upsert([baseRow], { onConflict:'documento' });
-    if(!res.error) return { ok:true, warning:'Salvou sem request_date.' };
+  if(res.error){
+    console.error('Erro salvando refaturamento_manual:', res.error);
+    return { ok:false, message: res.error?.message || 'Erro ao salvar na Supabase.' };
   }
 
-  console.error('Erro salvando refaturamento_manual:', res.error);
-  return { ok:false, message: res.error?.message || 'Erro ao salvar na Supabase.' };
+  return { ok:true };
 }
 function destroyChart(name){ if(state.charts[name]) state.charts[name].destroy(); }
 function makeBarChart(id, labels, data, horizontal=false, label='Valor'){
@@ -2462,11 +2482,13 @@ function bindManualSave(){
     const fields = Array.from(document.querySelectorAll(`.manual-input[data-cte="${cte}"]`));
     const payload = {};
     fields.forEach(field => { payload[field.getAttribute('data-field')] = field.value; });
+
     saveManual(cte, payload);
     const result = await saveManualToSupabase(cte, payload);
     renderAll();
+
     if(result.ok){
-      alert(result.warning ? `Cadastro salvo. ${result.warning}` : 'Cadastro salvo com sucesso.');
+      alert('Cadastro salvo com sucesso.');
     }else{
       alert('Salvou localmente, mas não conseguiu salvar na Supabase: ' + result.message);
     }
