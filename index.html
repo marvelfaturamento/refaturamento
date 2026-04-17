@@ -1061,8 +1061,22 @@ function parseNumber(v){
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
-function monthKey(v){ return v ? String(v).slice(0,7) : ''; }
-function classifyStatus(reqDate, baixaDate){ if(!reqDate) return 'empty'; return monthKey(reqDate) === monthKey(baixaDate) ? 'ok' : 'bad'; }
+function toInputDate(v){
+  const s = String(v || '').trim();
+  if(!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return '';
+}
+function monthKey(v){
+  const iso = toInputDate(v);
+  return iso ? iso.slice(0,7) : '';
+}
+function classifyStatus(reqDate, baixaDate){
+  if(!toInputDate(reqDate)) return 'empty';
+  return monthKey(reqDate) === monthKey(baixaDate) ? 'ok' : 'bad';
+}
 function statusTag(status){
   if(status === 'ok') return '<span class="tag ok">Mês correto</span>';
   if(status === 'bad') return '<span class="tag bad">Mês diferente</span>';
@@ -1169,18 +1183,10 @@ function mapManualRowFromSupabase(row){
   const cte = String(row.documento || row.cte || '').trim();
   if(!cte) return null;
 
-  let requestDate = '';
-  if(row.solicitacao){
-    const parts = String(row.solicitacao).split('-');
-    if(parts.length === 3){
-      requestDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-  }
-
   return {
     cte,
     payload: {
-      requestDate,
+      requestDate: toInputDate(row.solicitacao || ''),
       reason: row.motivo || '',
       detail: row.detalhamento || '',
       audit: String(row.auditoria || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
@@ -1214,7 +1220,7 @@ async function saveManualToSupabase(cte, payload){
 
   const row = {
     documento: String(cte || '').trim(),
-    solicitacao: toSqlDate(payload.requestDate),
+    solicitacao: toInputDate(payload.requestDate),
     motivo: String(payload.reason || '').trim(),
     detalhamento: String(payload.detail || '').trim(),
     auditoria: String(payload.audit || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
@@ -1775,7 +1781,7 @@ function renderManualTable(){
         <td><strong>${esc(r.refaturado)}</strong></td>
         <td>${esc(r.tomadorRefaturado || '-')}</td>
         <td>${displayDate(r.dataRefaturado)}</td>
-        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(manual.requestDate || '')}"></td>
+        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(toInputDate(manual.requestDate || ''))}"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="reason">${options.replace(`value="${esc(motivo)}"`,`value="${esc(motivo)}" selected`)}</select></td>
         <td><input class="manual-input" data-cte="${esc(r.refaturado)}" data-field="detail" value="${esc(manual.detail || '')}" placeholder="Detalhar"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="audit"><option value="nao" ${manual.audit === 'nao' || !manual.audit ? 'selected' : ''}>Não</option><option value="sim" ${manual.audit === 'sim' ? 'selected' : ''}>Sim</option></select></td>
@@ -2163,7 +2169,7 @@ function renderManualTable(){
         <td><strong>${esc(r.refaturado)}</strong></td>
         <td>${esc(r.tomadorRefaturado || '-')}</td>
         <td>${displayDate(r.dataRefaturado)}</td>
-        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(manual.requestDate || '')}"></td>
+        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(toInputDate(manual.requestDate || ''))}"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="reason">${options.replace(`value="${esc(motivo)}"`,`value="${esc(motivo)}" selected`)}</select></td>
         <td><input class="manual-input" data-cte="${esc(r.refaturado)}" data-field="detail" value="${esc(manual.detail || '')}" placeholder="Detalhar"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="audit"><option value="nao" ${manual.audit === 'nao' || !manual.audit ? 'selected' : ''}>Não</option><option value="sim" ${manual.audit === 'sim' ? 'selected' : ''}>Sim</option></select></td>
