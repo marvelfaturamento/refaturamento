@@ -676,7 +676,7 @@ function buildRefRowsForSync(mes, ano){
       frete_substituto: 0,
       reduzido: String(r.reduzido || '').trim(),
       motivo_baixa: String(r.motivoBaixa || '').trim(),
-      data_baixa: String(r.dataRefaturado || '').trim()
+      data_baixa: toInputDate(r.dataRefaturado) || null
     });
   });
   (state.substitutos || []).forEach(r => {
@@ -696,7 +696,7 @@ function buildRefRowsForSync(mes, ano){
       frete_substituto: parseNumber(r.freteSubstituto || 0),
       reduzido: String(r.reduzido || '').trim(),
       motivo_baixa: String(r.motivoBaixa || '').trim(),
-      data_baixa: String(r.dataSubstituto || '').trim()
+      data_baixa: toInputDate(r.dataSubstituto) || null
     });
   });
   (state.setores || []).forEach(s => {
@@ -714,7 +714,7 @@ function buildRefRowsForSync(mes, ano){
       frete_substituto: 0,
       reduzido: '',
       motivo_baixa: '',
-      data_baixa: ''
+      data_baixa: null
     });
   });
   return rows;
