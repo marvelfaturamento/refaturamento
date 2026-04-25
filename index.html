@@ -155,6 +155,18 @@
     </section>
 
     <section id="usuarios" class="view">
+  <div class="card" style="margin-bottom:16px; padding:14px 16px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+      <div>
+        <h3 style="margin-bottom:4px;">Filtro geral da análise de usuários</h3>
+        <div class="sub" style="margin-bottom:0;">Filtra os dois gráficos superiores e a tabela de usuários.</div>
+      </div>
+      <div class="field" style="max-width:260px; min-width:200px;">
+        <label>Usuário</label>
+        <select id="usuariosTopSelect"></select>
+      </div>
+    </div>
+  </div>
   <div class="grid grid-2">
     <div class="card"><h3>Usuários que mais cometem erro</h3><div class="sub">Somente setor Faturamento.</div><div class="chart-box"><canvas id="chartUsuariosErroQtd"></canvas></div></div>
     <div class="card"><h3>Usuários que mais cometem erro por valor</h3><div class="sub">Somente setor Faturamento, usando débito.</div><div class="chart-box"><canvas id="chartUsuariosErroValor"></canvas></div></div>
@@ -3113,7 +3125,24 @@ function aggregateUserReasons(rows){
 }
 
 function renderUsuariosView(){
-  const users = usuariosErroAggregate().slice(0,10);
+  const allUserRows = usuariosErroAggregate();
+
+  const topSelect = document.getElementById('usuariosTopSelect');
+  let selectedTopUser = 'TODOS';
+  if(topSelect){
+    const currentTop = topSelect.value || 'TODOS';
+    const allTopUsers = allUserRows.map(x => x.user);
+    topSelect.innerHTML = '<option value="TODOS">Todos</option>' + allTopUsers.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
+    if(currentTop !== 'TODOS' && allTopUsers.includes(currentTop)) topSelect.value = currentTop;
+    else topSelect.value = 'TODOS';
+    selectedTopUser = topSelect.value || 'TODOS';
+  }
+
+  const usersBase = selectedTopUser === 'TODOS'
+    ? allUserRows
+    : allUserRows.filter(x => x.user === selectedTopUser);
+  const users = usersBase.slice(0, selectedTopUser === 'TODOS' ? 10 : 1);
+
   makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
   makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Valor');
   document.getElementById('tbodyUsuarios').innerHTML = users.length
@@ -3121,7 +3150,7 @@ function renderUsuariosView(){
     : `<tr><td colspan="3" class="center muted">Sem dados</td></tr>`;
 
   const select = document.getElementById('usuariosReasonSelect');
-  const allUsers = usuariosErroAggregate().map(x => x.user);
+  const allUsers = allUserRows.map(x => x.user);
   let selectedUser = 'TODOS';
   if(select){
     const current = select.value || 'TODOS';
@@ -3338,6 +3367,7 @@ function exportPainelExcel(){
 }
 
 document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('usuariosTopSelect')?.addEventListener('change', renderUsuariosView);
   document.getElementById('usuariosReasonSelect')?.addEventListener('change', renderUsuariosView);
   document.getElementById('setorReasonSelect')?.addEventListener('change', renderSetoresView);
 
