@@ -1,8 +1,447 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Refaturamento e Baixas</title>
+  <link rel="icon" href="data:,">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{
+      --bg:#08101d; --bg2:#0d1526; --panel:#121d31; --stroke:rgba(255,255,255,.08);
+      --text:#edf3ff; --muted:#9cb0d2; --blue:#4f8cff; --shadow:0 18px 40px rgba(0,0,0,.25); --radius:18px;
+    }
+    *{box-sizing:border-box} html,body{margin:0;padding:0}
+    body{font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);color:var(--text)}
+    .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+    .sidebar{background:#0d1628;border-right:1px solid var(--stroke);padding:20px;position:sticky;top:0;height:100vh;overflow:auto}
+    .brand{margin-bottom:18px;padding:16px;border:1px solid var(--stroke);border-radius:20px;background:linear-gradient(180deg,rgba(79,140,255,.16),rgba(255,255,255,.02));box-shadow:var(--shadow)}
+    .brand h1{margin:0;font-size:23px}.brand p{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+    .menu{display:flex;flex-direction:column;gap:10px}
+    .menu button{width:100%;border:none;border-radius:14px;padding:14px 16px;text-align:left;font-weight:700;cursor:pointer;color:#fff;background:#18243a;border:1px solid transparent}
+    .menu button.active{background:linear-gradient(90deg,rgba(79,140,255,.22),rgba(79,140,255,.08));border-color:rgba(79,140,255,.35)}
+    .main{padding:22px}
+    .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+    .title h2{margin:0 0 6px;font-size:32px}.title p{margin:0;color:var(--muted)}
+    .chips{display:flex;flex-wrap:wrap;gap:10px}.chip{padding:10px 12px;border-radius:999px;border:1px solid var(--stroke);background:#14233b;color:var(--muted);font-size:12px;white-space:nowrap}
+    .view{display:none}.view.active{display:block}
+    .grid{display:grid;gap:16px}.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .card{background:linear-gradient(180deg,rgba(20,31,52,.95),rgba(17,26,43,.98));border:1px solid var(--stroke);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);min-width:0}
+    .card h3{margin:0 0 8px;font-size:20px}.sub{color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:12px}
+    .kpi{padding:18px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.06)}
+    .kpi .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+    .kpi .value{font-size:30px;font-weight:700;margin-top:10px}.kpi .hint{margin-top:8px;color:var(--muted);font-size:12px}
+    .controls{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:14px}
+    .field{display:flex;flex-direction:column;gap:6px;min-width:0}
+    .field label{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:700;letter-spacing:.05em}
+    input,select,textarea{width:100%;border-radius:12px;border:1px solid var(--stroke);background:#0f1728;color:#fff;padding:11px 12px;font:inherit;outline:none}
+    textarea{min-height:140px;resize:vertical}
+    input:focus,select:focus,textarea:focus{border-color:rgba(79,140,255,.55);box-shadow:0 0 0 4px rgba(79,140,255,.12)}
+    .btn{border:none;border-radius:12px;padding:11px 14px;background:linear-gradient(180deg,var(--blue),#3f76df);color:#fff;font-weight:700;cursor:pointer}
+    .btn.secondary{background:#15233a;border:1px solid var(--stroke)} .btn.small{padding:9px 12px;font-size:12px;border-radius:10px}
+    .table-wrap{overflow:auto;border:1px solid var(--stroke);border-radius:16px;background:#0f1728}
+    table{width:100%;border-collapse:collapse;min-width:1100px}.compact table{min-width:720px}
+    th,td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px;text-align:left;vertical-align:top}
+    th{position:sticky;top:0;z-index:1;background:#13233d;color:#d5e3ff} tr:hover td{background:rgba(255,255,255,.02)}
+    .tag{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:700}
+    .tag.ok{background:rgba(34,197,94,.18);color:#9af0b8}.tag.bad{background:rgba(239,68,68,.18);color:#ffb0b0}.tag.neutral{background:rgba(79,140,255,.18);color:#aaccff}
+    .box-info{padding:12px 14px;border-radius:12px;border:1px solid rgba(79,140,255,.25);background:#10233f;color:#c4dbff;font-size:13px;line-height:1.5}
+    .box-danger{padding:12px 14px;border-radius:12px;border:1px solid rgba(239,68,68,.22);background:rgba(239,68,68,.10);color:#ffd0d0;font-size:13px;line-height:1.5}
+    .muted{color:var(--muted)} .center{text-align:center} .chart-box{height:360px}
+    @media (max-width:1200px){.grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-2{grid-template-columns:1fr}.controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:860px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto;border-right:none;border-bottom:1px solid var(--stroke)}.controls{grid-template-columns:1fr}.grid-4{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>Painel de Baixas</h1>
+      <p>Parser guiado pelos nomes dos blocos e cabeçalhos do Excel.</p>
+    </div>
+    <div class="menu">
+      <button class="active" data-view="dashboard">Dashboard</button>
+      <button data-view="registros">Registros</button>
+      <button data-view="conciliacao">Conciliação</button>
+      <button data-view="motivos">Análise de Motivos</button>
+      <button data-view="usuarios">Análise de Usuários</button>
+      <button data-view="clientes">Análise de Clientes</button>
+      <button data-view="setores">Análise por Setor</button>
+      <button data-view="performance">Performance Usuários</button>
+      <button data-view="anual">Análise Anual</button>
+      <button data-view="cadastro">Cadastro Manual</button>
+      <button data-view="config">Configuração</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="title">
+        <h2>Painel de Refaturamento</h2>
+        <p id="subtitle">Importe o Excel para iniciar a leitura.</p>
+      </div>
+      <div class="chips">
+        <div class="chip" id="chipSheets">0 abas</div>
+        <div class="chip" id="chipRef">0 refaturados</div>
+        <div class="chip" id="chipSub">0 substitutos</div>
+        <div class="chip" id="chipFat">0 faturamento</div>
+        <div class="chip" id="chipTotal">R$ 0,00</div>
+      </div>
+      <div class="field" style="min-width:260px; max-width:320px;">
+        <label>Mês consultado</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="monthViewSelect"></select>
+          <button class="btn secondary" id="btnApplyMonthView" type="button">Consultar</button>
+        </div>
+      </div>
+    </div>
+
+    <section id="dashboard" class="view active">
+      <div class="grid grid-4" id="kpiGrid"></div>
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card"><h3>Resumo executivo</h3><div class="sub">Visão geral consolidada.</div><div id="resumoBox" class="box-info">Nenhum arquivo importado ainda.</div></div>
+        <div class="card"><h3>Alertas</h3><div class="sub">Solicitação e consistência.</div><div id="alertasBox" class="box-danger">Sem análise enquanto nenhum arquivo foi importado.</div></div>
+      </div>
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card"><h3>Top clientes por valor refaturado</h3><div class="sub">Cliente x soma de frete_refaturado.</div><div class="chart-box"><canvas id="chartTopClienteRef"></canvas></div></div>
+        <div class="card"><h3>Top clientes por valor substituto</h3><div class="sub">Cliente x soma de frete_substituto.</div><div class="chart-box"><canvas id="chartTopClienteSub"></canvas></div></div>
+      </div>
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card"><h3>Setores por valor</h3><div class="sub">Soma do débito por setor.</div><div class="chart-box"><canvas id="chartSetoresDebito"></canvas></div></div>
+        <div class="card"><h3>Resumo por setor</h3><div class="sub">Tabela rápida dos totais.</div><div class="table-wrap compact"><table><thead><tr><th>Setor</th><th>Débito</th></tr></thead><tbody id="tbodyDashSetor"></tbody></table></div></div>
+      </div>
+    </section>
+
+    <section id="registros" class="view">
+      <div class="card">
+        <h3>Registros</h3>
+        <div class="sub">Substitutos, refaturados e vínculos por setor.</div>
+        <div class="controls">
+          <div class="field"><label>Buscar</label><input id="filterSearch" placeholder="CTE, cliente, usuário..." /></div>
+          <div class="field"><label>Tipo</label><select id="filterTipo"><option value="todos">Todos</option><option value="refaturado">Refaturados</option><option value="substituto">Substitutos</option></select></div>
+          <div class="field"><label>Status baixa</label><select id="filterStatus"><option value="todos">Todos</option><option value="ok">Mês correto</option><option value="bad">Mês diferente</option><option value="empty">Sem solicitação</option></select></div>
+          <div class="field"><label>Somente série 80/81</label><select id="filterSerie80"><option value="nao">Não</option><option value="sim">Sim</option></select></div>
+          <div class="field"><label>&nbsp;</label><button class="btn secondary" id="btnExportJson">Exportar cadastro manual</button></div>
+          <div class="field"><label>&nbsp;</label><button class="btn secondary" id="btnClearManual">Limpar cadastro manual</button></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tipo</th><th>CTE</th><th>Original</th><th>Cliente</th><th>Usuário original</th><th>Setor</th><th>Baixa</th><th>Débito</th><th>Frete original</th><th>Frete refaturado</th><th>Frete substituto</th><th>Motivo</th></tr></thead>
+            <tbody id="tbodyRegistros"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="conciliacao" class="view">
+      <div class="grid grid-2">
+        <div class="card"><h3>Série 80/81 sem solicitação</h3><div class="table-wrap compact"><table><thead><tr><th>CTE</th><th>Cliente</th><th>Baixa</th><th>Débito</th></tr></thead><tbody id="tbodySemSolicitacao"></tbody></table></div></div>
+        <div class="card"><h3>Baixa em mês diferente</h3><div class="table-wrap compact"><table><thead><tr><th>CTE</th><th>Cliente</th><th>Solicitação</th><th>Baixa</th><th>Status</th></tr></thead><tbody id="tbodyMesDiferente"></tbody></table></div></div>
+      </div>
+    </section>
+
+    <section id="motivos" class="view">
+      <div class="grid grid-2">
+        <div class="card"><h3>Ranking de valores: total x refaturado x substituto</h3><div class="sub">Total = refaturado + substituto. Refaturado = soma dos débitos dos setores.</div><div class="chart-box"><canvas id="chartOriginalRefSubs"></canvas></div></div>
+        <div class="card"><h3>Motivos por quantidade</h3><div class="chart-box"><canvas id="chartMotivosQtd"></canvas></div></div>
+      </div>
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card"><h3>Motivos por valor</h3><div class="sub">Soma do débito vinculado ao motivo.</div><div class="chart-box"><canvas id="chartMotivosValor"></canvas></div></div>
+        <div class="card"><h3>Tabela de motivos</h3><div class="table-wrap"><table><thead><tr><th>Motivo</th><th>Qtd.</th><th>Valor original</th><th>Valor refaturado</th><th>Valor substituto</th><th>Débito</th></tr></thead><tbody id="tbodyMotivos"></tbody></table></div></div>
+      </div>
+    </section>
+
+    <section id="usuarios" class="view">
+  <div class="card" style="margin-bottom:16px; padding:14px 16px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+      <div>
+        <h3 style="margin-bottom:4px;">Filtro geral da análise de usuários</h3>
+        <div class="sub" style="margin-bottom:0;">Filtra os dois gráficos superiores e a tabela de usuários.</div>
+      </div>
+      <div class="field" style="max-width:260px; min-width:200px;">
+        <label>Usuário</label>
+        <select id="usuariosTopSelect"></select>
+      </div>
+    </div>
+  </div>
+  <div class="grid grid-2">
+    <div class="card"><h3>Usuários que mais cometem erro</h3><div class="sub">Somente setor Faturamento.</div><div class="chart-box"><canvas id="chartUsuariosErroQtd"></canvas></div></div>
+    <div class="card"><h3>Usuários que mais cometem erro por valor</h3><div class="sub">Somente setor Faturamento, usando débito.</div><div class="chart-box"><canvas id="chartUsuariosErroValor"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <h3>Tabela de usuários</h3>
+    <div class="table-wrap"><table><thead><tr><th>Usuário</th><th>Qtd. erros</th><th>Valor em erro</th></tr></thead><tbody id="tbodyUsuarios"></tbody></table></div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+      <div>
+        <h3>Motivos por usuário</h3>
+        <div class="sub">Selecione um usuário para ver os motivos ligados aos CTEs com erro no faturamento.</div>
+      </div>
+      <div class="field" style="max-width:260px; min-width:180px;">
+        <label>Usuário</label>
+        <select id="usuariosReasonSelect"></select>
+      </div>
+    </div>
+    <div class="grid grid-2" style="margin-top:12px;">
+      <div class="card" style="padding:14px;">
+        <h3 style="font-size:18px;">Motivos por quantidade</h3>
+        <div class="chart-box"><canvas id="chartUsuarioMotivosQtd"></canvas></div>
+      </div>
+      <div class="card" style="padding:14px;">
+        <h3 style="font-size:18px;">Motivos por valor</h3>
+        <div class="chart-box"><canvas id="chartUsuarioMotivosValor"></canvas></div>
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-top:16px;">
+      <table>
+        <thead><tr><th>CTE</th><th>Cliente</th><th>Usuário</th><th>Motivo</th><th>Valor em erro</th><th>Setor</th></tr></thead>
+        <tbody id="tbodyUsuariosMotivos"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+    <section id="clientes" class="view">
+      <div class="grid grid-2">
+        <div class="card"><h3>Cliente x quantidade refaturada</h3><div class="chart-box"><canvas id="chartClienteQtd"></canvas></div></div>
+        <div class="card"><h3>Cliente x valor refaturado</h3><div class="sub">Soma do débito vinculado aos refaturados.</div><div class="chart-box"><canvas id="chartClienteValor"></canvas></div></div>
+      </div>
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card"><h3>Cliente x principal motivo</h3><div class="chart-box"><canvas id="chartClienteMotivo"></canvas></div></div>
+        <div class="card"><h3>Tabela de clientes</h3><div class="table-wrap"><table><thead><tr><th>Cliente agrupado</th><th>Qtd.</th><th>Valor refaturado</th><th>Principal motivo</th></tr></thead><tbody id="tbodyClientes"></tbody></table></div></div>
+      </div>
+    </section>
+
+    <section id="setores" class="view">
+      <div class="grid grid-2">
+        <div class="card"><h3>Setor x valor refaturado</h3><div class="sub">Soma de frete_substituto por setor do reduzido.</div><div class="chart-box"><canvas id="chartSetorRef"></canvas></div></div>
+        <div class="card"><h3>Setor x valor substituto</h3><div class="sub">Soma de frete_refaturado por setor do reduzido.</div><div class="chart-box"><canvas id="chartSetorSub"></canvas></div></div>
+      </div>
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card"><h3>Setor x valor total</h3><div class="sub">Refaturado + substituto por setor.</div><div class="chart-box"><canvas id="chartSetorTotal"></canvas></div></div>
+        <div class="card"><h3>Tabela por setor</h3><div class="table-wrap"><table><thead><tr><th>Setor</th><th>Qtd. refaturados</th><th>Valor refaturado</th><th>Qtd. substitutos</th><th>Valor substituto</th><th>Valor total</th></tr></thead><tbody id="tbodySetores"></tbody></table></div></div>
+      </div>
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card"><h3>Quantitativo refaturado por setor</h3><div class="sub">Total de linhas refaturadas por setor.</div><div class="chart-box"><canvas id="chartRefQtySetor"></canvas></div></div>
+        <div class="card"><h3>Quantitativo substituto por setor</h3><div class="sub">Total de linhas substitutas por setor.</div><div class="chart-box"><canvas id="chartSubQtySetor"></canvas></div></div>
+      </div>
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card"><h3>Reduzido quantitativo dos setores</h3><div class="sub">Quantidade por setor no campo reduzido.</div><div class="chart-box"><canvas id="chartReduzidoQtdSetor"></canvas></div></div>
+        <div class="card"><h3>Observação</h3><div class="sub">Quando um registro tiver dois setores no campo reduzido, o valor do substituto é dividido igualmente entre eles.</div><div class="box-info">Exemplo: FATURAMENTO/COMERCIAL com valor 5.113,64 vira 2.556,82 para FATURAMENTO e 2.556,82 para COMERCIAL.</div></div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div>
+            <h3>Motivos por setor</h3>
+            <div class="sub">Selecione um setor para ver os motivos ligados aos CTEs desse setor.</div>
+          </div>
+          <div class="field" style="max-width:260px; min-width:180px;">
+            <label>Setor</label>
+            <select id="setorReasonSelect"></select>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-top:12px;">
+          <div class="card" style="padding:14px;">
+            <h3 style="font-size:18px;">Motivos por quantidade</h3>
+            <div class="chart-box"><canvas id="chartSetorMotivosQtd"></canvas></div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <h3 style="font-size:18px;">Motivos por valor</h3>
+            <div class="chart-box"><canvas id="chartSetorMotivosValor"></canvas></div>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:16px;">
+          <table>
+            <thead><tr><th>CTE</th><th>Cliente</th><th>Setor</th><th>Motivo</th><th>Valor em erro</th><th>Usuário</th></tr></thead>
+            <tbody id="tbodySetoresMotivos"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    
+    <section id="performance" class="view">
+      <div class="grid grid-2">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+            <div>
+              <h3>Documentos do usuário no mês</h3>
+              <div class="sub">Total mensal do usuário selecionado. A produção usa CTRC + Manifesto + NF.fat + OST.</div>
+            </div>
+            <div class="field" style="max-width:220px; min-width:180px;">
+              <label>Usuário</label>
+              <select id="performanceUserSelect"></select>
+            </div>
+          </div>
+          <div class="chart-box"><canvas id="chartProdUsuarioMes"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Tipos de documento no mês por usuário</h3>
+          <div class="sub">Distribuição entre CTRC, Manifesto, NF.fat e OST.</div>
+          <div class="chart-box"><canvas id="chartProdTiposMes"></canvas></div>
+        </div>
+      </div>
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card">
+          <h3>Performance % por usuário</h3>
+          <div class="sub">Percentual positivo com base no erro do operador: 100 - ((erros × 100) / (CTRC + OST)).</div>
+          <div class="chart-box"><canvas id="chartPerformance"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Faixa de performance</h3>
+          <div class="sub">Ótimo 99,51 a 100, Regular 97 a 99,50 e Ruim 90 a 96,9.</div>
+          <div class="chart-box"><canvas id="chartPerformancePie"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="anual" class="view">
+      <div class="grid grid-2">
+        <div class="card">
+          <h3>Análise anual</h3>
+          <div class="sub">Importe um mês por vez e salve na base anual.</div>
+          <div class="chart-box"><canvas id="chartAnnualTotals"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Setor no ano</h3>
+          <div class="sub">Selecione um setor para ver refaturado, substituto e total por mês.</div>
+          <div class="field" style="max-width:260px; margin-bottom:12px;">
+            <label>Setor</label>
+            <select id="annualSectorSelect"></select>
+          </div>
+          <div class="chart-box"><canvas id="chartAnnualSector"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>Documentos anuais</h3>
+        <div class="sub">Quantidade total de documentos por mês no Excel de produtividade.</div>
+        <div class="chart-box"><canvas id="chartAnnualProd"></canvas></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>Meses salvos</h3>
+        <div class="sub">Resumo da base anual salva neste navegador.</div>
+        <div class="table-wrap compact">
+          <table>
+            <thead><tr><th>Mês</th><th>Refaturado</th><th>Substituto</th><th>Total</th><th>Documentos</th><th>Ação</th></tr></thead>
+            <tbody id="tbodyAnnualMonths"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="cadastro" class="view">
+      <div class="card">
+        <h3>Cadastro manual por refaturado</h3>
+        <div class="sub">O motivo tenta vir automático do Excel.</div>
+        <div class="table-wrap">
+          <table><thead><tr><th>CTE</th><th>Cliente</th><th>Data baixa</th><th>Solicitação</th><th>Motivo</th><th>Detalhamento</th><th>Auditoria</th><th>Salvar</th></tr></thead><tbody id="tbodyCadastro"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="config" class="view">
+      <div class="grid grid-2">
+        <div class="card">
+          <h3>Importar Excel</h3>
+          <div class="field"><label>Arquivo</label><input type="file" id="excelUpload" accept=".xls,.xlsx,.csv" /></div>
+          <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:10px; margin-top:14px; align-items:end;">
+            <div class="field"><label>Mês</label><select id="annualMonth"><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select></div>
+            <div class="field"><label>Ano</label><input id="annualYear" type="number" value="2026"></div>
+            <button class="btn secondary" id="btnSaveCurrentMonth">Salvar mês</button>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn secondary" id="btnClearAnnual">Limpar base anual</button>
+          </div>
+          <div id="importMsg" class="box-info" style="margin-top:14px;">Nenhum arquivo importado.</div>
+        </div>
+        <div class="card"><h3>Console do parser</h3><textarea id="logBox" readonly></textarea></div>
+      </div>
+      
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card">
+          <h3>Importar Excel de produtividade</h3>
+          <div class="sub">Usado para a aba Performance Usuários e para Documentos anuais. A conta anual considera CTRC + OST.</div>
+          <div class="field"><label>Arquivo</label><input type="file" id="prodExcelUpload" accept=".xls,.xlsx,.csv" /></div>
+          <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:10px; margin-top:14px; align-items:end;">
+            <div class="field"><label>Mês produtividade</label><select id="prodMonth"><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select></div>
+            <div class="field"><label>Ano produtividade</label><input id="prodYear" type="number" value="2026"></div>
+            <button class="btn secondary" id="btnSaveProdMonth">Salvar docs</button>
+          </div>
+          <div id="prodImportMsg" class="box-info" style="margin-top:14px;">Nenhum Excel de produtividade importado.</div>
+        </div>
+        <div class="card">
+          <h3>Supabase</h3>
+          <div class="sub">A URL e a key ficam dentro do HTML. Use somente o botão para sincronizar o mês salvo.</div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+            <button class="btn secondary" id="btnSyncSupabase">Sincronizar</button>
+          </div>
+          <div id="syncStatus" class="box-info" style="margin-top:14px;">Configure a Supabase no script e clique em Sincronizar.</div>
+          <textarea readonly style="margin-top:14px; min-height:170px;">SQL inicial:
+create extension if not exists "uuid-ossp";
+
+create table if not exists refaturamento (
+  id uuid default uuid_generate_v4() primary key,
+  documento text,
+  original_doc text,
+  cliente text,
+  usuario text,
+  setor text,
+  debito numeric,
+  frete_refaturado numeric,
+  frete_substituto numeric,
+  frete_original numeric,
+  tipo text,
+  mes text,
+  ano text,
+  unique(documento, mes, ano, tipo)
+);
+
+create table if not exists produtividade (
+  id uuid default uuid_generate_v4() primary key,
+  usuario text,
+  tipo_doc text,
+  quantidade numeric,
+  mes text,
+  ano text,
+  unique(usuario, tipo_doc, mes, ano)
+);
+
+create table if not exists manual (
+  documento text primary key,
+  motivo text,
+  detalhamento text,
+  auditoria text
+);</textarea>
+        </div>
+      </div>
+
+<div class="grid grid-2" style="margin-top:16px;">
+        <div class="card">
+          <h3>Motivos padrão</h3>
+          <textarea id="reasonBox"></textarea>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+            <button class="btn" id="btnSaveReasons">Salvar motivos</button>
+            <button class="btn secondary" id="btnResetReasons">Restaurar padrão</button>
+          </div>
+        </div>
+        <div class="card"><h3>Observação</h3><div class="box-danger">Parser guiado por cabeçalhos. Sem dependência de linha fixa.</div></div>
+      </div>
+    </section>
+  </main>
+</div>
+
 <script>
 // 🔐 Acesso vindo do menu pai
 const MENU_PAI_URL = "https://menu-rho-olive.vercel.app/";
 const params = new URLSearchParams(window.location.search);
-const perfil = (params.get("perfil") || "").trim();
+const perfil = (params.get("perfil") || "").trim().toLowerCase();
 const usuario = params.get("usuario") || "";
 const usuarioRef = (params.get("usuarioRef") || "").trim();
 
@@ -17,7 +456,6 @@ function aclNormUser(v){
 }
 function aclRestritoPorUsuario(){ return perfil !== "admin" && !!usuarioRef; }
 function aclUserMatch(v){ return aclNormUser(v) === aclNormUser(usuarioRef); }
-
 const DEFAULT_REASONS = [
   'valor incorreto na tabela','valor incorreto','filial incorreta','CNPJ invertido','série incorreta','pagador incorreto',
   'observação incorreta','emissão indevida','imposto incorreto','remetente incorreto','destinatário incorreto',
@@ -2218,33 +2656,45 @@ window.addEventListener('DOMContentLoaded', function(){
   bindConfigActions();
   bindExcelImport();
   bindProdExcelImport();
+  // 🔐 CONTROLE DE PERMISSÕES REFATURAMENTO
+  // admin: tudo
+  // operacional: tudo, com filtros de usuário travados pelo usuarioRef
+  // consulta: tudo menos Configuração, com filtros de usuário travados pelo usuarioRef
   const permissoesRefaturamento = {
-  admin: ["dashboard", "registros", "conciliacao", "motivos", "usuarios", "clientes", "setores", "performance", "anual", "cadastro", "config"],
-  operacional: ["dashboard", "registros", "conciliacao", "motivos", "usuarios", "clientes", "setores", "performance", "anual", "cadastro", "config"],
-  consulta: ["dashboard", "registros", "conciliacao", "motivos", "usuarios", "clientes", "setores", "performance", "anual", "cadastro"]
-};
+    admin: [
+      "dashboard", "registros", "conciliacao", "motivos", "usuarios",
+      "clientes", "setores", "performance", "anual", "cadastro", "config"
+    ],
+    operacional: [
+      "dashboard", "registros", "conciliacao", "motivos", "usuarios",
+      "clientes", "setores", "performance", "anual", "cadastro", "config"
+    ],
+    consulta: [
+      "dashboard", "registros", "conciliacao", "motivos", "usuarios",
+      "clientes", "setores", "performance", "anual", "cadastro"
+    ]
+  };
 
-const liberadas = permissoesRefaturamento[perfil] || permissoesRefaturamento.consulta;
+  const liberadas = permissoesRefaturamento[perfil] || permissoesRefaturamento.consulta;
 
-document.querySelectorAll("[data-view]").forEach(btn => {
-  const view = btn.getAttribute("data-view");
-  if (!liberadas.includes(view)) {
-    btn.style.display = "none";
+  document.querySelectorAll("[data-view]").forEach(btn => {
+    const view = btn.getAttribute("data-view");
+    if (!liberadas.includes(view)) {
+      btn.style.display = "none";
+    }
+  });
+
+  const viewAtiva = document.querySelector(".view.active");
+  if (viewAtiva && !liberadas.includes(viewAtiva.id)) {
+    const primeiraPermitida = liberadas[0] || "dashboard";
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    document.querySelectorAll("[data-view]").forEach(b => b.classList.remove("active"));
+    const viewEl = document.getElementById(primeiraPermitida);
+    const btnEl = document.querySelector(`[data-view="${primeiraPermitida}"]`);
+    if (viewEl) viewEl.classList.add("active");
+    if (btnEl) btnEl.classList.add("active");
   }
-});
 
-const viewAtiva = document.querySelector(".view.active");
-if (viewAtiva && !liberadas.includes(viewAtiva.id)) {
-  const primeiraPermitida = liberadas[0];
-  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
-  document.querySelectorAll("[data-view]").forEach(b => b.classList.remove("active"));
-
-  const viewEl = document.getElementById(primeiraPermitida || "dashboard");
-  const btnEl = document.querySelector(`[data-view="${primeiraPermitida || "dashboard"}"]`);
-
-  if (viewEl) viewEl.classList.add("active");
-  if (btnEl) btnEl.classList.add("active");
-}
   bootstrap();
 });
 
@@ -2627,78 +3077,6 @@ function renderAnnualView(){
   }
 }
 
-
-
-/* =========================================================
-   🔐 BLOQUEIO FINAL POR PERFIL/USUÁRIO - menu pai
-   admin: tudo e todos os usuários
-   operacional: tudo no refaturamento, mas usuarioRef travado
-   consulta: sem Configuração, e usuarioRef travado
-========================================================= */
-(function aplicarBloqueioUsuarioRefaturamento(){
-  function travarSelectUsuario(select){
-    if(!select || !aclRestritoPorUsuario()) return;
-    const alvo = aclNormUser(usuarioRef);
-    const opcoes = Array.from(select.options || []);
-    const match = opcoes.find(o => aclNormUser(o.value) === alvo || aclNormUser(o.textContent) === alvo);
-    select.innerHTML = '';
-    const opt = document.createElement('option');
-    opt.value = match ? match.value : usuarioRef;
-    opt.textContent = match ? match.textContent : usuarioRef;
-    select.appendChild(opt);
-    select.value = opt.value;
-    select.disabled = true;
-    select.title = 'Filtro travado pelo usuário do menu pai';
-  }
-
-  if(typeof usuariosErroAggregate === 'function'){
-    const originalUsuariosErroAggregate = usuariosErroAggregate;
-    usuariosErroAggregate = function(){
-      const rows = originalUsuariosErroAggregate.apply(this, arguments) || [];
-      if(!aclRestritoPorUsuario()) return rows;
-      return rows.filter(x => aclUserMatch(x.user));
-    };
-  }
-
-  if(typeof aggregateProd === 'function'){
-    const originalAggregateProd = aggregateProd;
-    aggregateProd = function(){
-      const rows = originalAggregateProd.apply(this, arguments) || [];
-      if(!aclRestritoPorUsuario()) return rows;
-      return rows.filter(x => aclUserMatch(x.usuario));
-    };
-  }
-
-  if(typeof getUsuariosReasonDetailRows === 'function'){
-    const originalGetUsuariosReasonDetailRows = getUsuariosReasonDetailRows;
-    getUsuariosReasonDetailRows = function(selectedUser){
-      if(aclRestritoPorUsuario()) selectedUser = usuarioRef;
-      const rows = originalGetUsuariosReasonDetailRows.call(this, selectedUser) || [];
-      if(!aclRestritoPorUsuario()) return rows;
-      return rows.filter(r => aclUserMatch(r.usuario));
-    };
-  }
-
-  if(typeof renderPerformanceView === 'function'){
-    const originalRenderPerformanceView = renderPerformanceView;
-    renderPerformanceView = function(){
-      const result = originalRenderPerformanceView.apply(this, arguments);
-      travarSelectUsuario(document.getElementById('performanceUserSelect'));
-      return result;
-    };
-  }
-
-  if(typeof renderUsuariosView === 'function'){
-    const originalRenderUsuariosView = renderUsuariosView;
-    renderUsuariosView = function(){
-      const result = originalRenderUsuariosView.apply(this, arguments);
-      travarSelectUsuario(document.getElementById('usuariosTopSelect'));
-      travarSelectUsuario(document.getElementById('usuariosReasonSelect'));
-      return result;
-    };
-  }
-})();
-
 </script>
 <script>
 function getUsuariosReasonDetailRows(selectedUser){
@@ -2977,6 +3355,98 @@ function exportPainelExcel(){
     alert('Erro ao exportar Excel: ' + (err?.message || err));
   }
 }
+
+
+
+// 🔒 BLOQUEIO POR USUÁRIO (usuarioRef) - aplicado sem alterar cálculos originais
+(function(){
+  function isRestricted(){
+    try { return typeof aclRestritoPorUsuario === 'function' && aclRestritoPorUsuario(); }
+    catch(e){ return false; }
+  }
+  function matchUser(v){
+    try { return typeof aclUserMatch === 'function' && aclUserMatch(v); }
+    catch(e){ return false; }
+  }
+  function lockSelect(id){
+    if(!isRestricted()) return;
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    const safe = (typeof esc === 'function') ? esc(usuarioRef) : String(usuarioRef).replace(/[&<>"']/g, '');
+    sel.innerHTML = `<option value="${safe}">${safe}</option>`;
+    sel.value = usuarioRef;
+    sel.disabled = true;
+    sel.title = 'Filtro travado pelo login do menu principal';
+  }
+  function lockAllUserSelects(){
+    lockSelect('usuariosTopSelect');
+    lockSelect('usuariosReasonSelect');
+    lockSelect('performanceUserSelect');
+  }
+
+  try{
+    if(typeof usuariosErroAggregate === 'function'){
+      const originalUsuariosErroAggregate = usuariosErroAggregate;
+      usuariosErroAggregate = function(){
+        const rows = originalUsuariosErroAggregate.apply(this, arguments) || [];
+        return isRestricted() ? rows.filter(x => matchUser(x.user || x.usuario || x.operador)) : rows;
+      };
+    }
+  }catch(e){ console.warn('ACL usuários aggregate:', e); }
+
+  try{
+    if(typeof aggregateProd === 'function'){
+      const originalAggregateProd = aggregateProd;
+      aggregateProd = function(){
+        const rows = originalAggregateProd.apply(this, arguments) || [];
+        return isRestricted() ? rows.filter(x => matchUser(x.usuario || x.user || x.operador)) : rows;
+      };
+    }
+  }catch(e){ console.warn('ACL produtividade aggregate:', e); }
+
+  try{
+    if(typeof getUsuariosReasonDetailRows === 'function'){
+      const originalGetUsuariosReasonDetailRows = getUsuariosReasonDetailRows;
+      getUsuariosReasonDetailRows = function(selectedUser){
+        const forcedUser = isRestricted() ? usuarioRef : selectedUser;
+        const rows = originalGetUsuariosReasonDetailRows.call(this, forcedUser) || [];
+        return isRestricted() ? rows.filter(r => matchUser(r.usuario || r.user || r.operador)) : rows;
+      };
+    }
+  }catch(e){ console.warn('ACL motivos usuário:', e); }
+
+  try{
+    if(typeof renderUsuariosView === 'function'){
+      const originalRenderUsuariosView = renderUsuariosView;
+      renderUsuariosView = function(){
+        const top = document.getElementById('usuariosTopSelect');
+        const reason = document.getElementById('usuariosReasonSelect');
+        if(isRestricted()){
+          if(top) top.value = usuarioRef;
+          if(reason) reason.value = usuarioRef;
+        }
+        const result = originalRenderUsuariosView.apply(this, arguments);
+        lockAllUserSelects();
+        return result;
+      };
+    }
+  }catch(e){ console.warn('ACL render usuários:', e); }
+
+  try{
+    if(typeof renderPerformanceView === 'function'){
+      const originalRenderPerformanceView = renderPerformanceView;
+      renderPerformanceView = function(){
+        const perf = document.getElementById('performanceUserSelect');
+        if(isRestricted() && perf) perf.value = usuarioRef;
+        const result = originalRenderPerformanceView.apply(this, arguments);
+        lockAllUserSelects();
+        return result;
+      };
+    }
+  }catch(e){ console.warn('ACL render performance:', e); }
+
+  document.addEventListener('DOMContentLoaded', lockAllUserSelects);
+})();
 
 document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('usuariosTopSelect')?.addEventListener('change', renderUsuariosView);
