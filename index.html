@@ -803,19 +803,74 @@ function sameProdRow(a, b){
 }
 async function fetchRemoteMonthKeys(){
   if(!ensureSupabaseConnected()) return [];
-  const { data, error } = await state.supabase
-    .from('meses_importados')
-    .select('mes,ano')
-    .order('ano', { ascending: true })
-    .order('mes', { ascending: true });
-  if(error){
-    console.error('Erro buscando meses importados:', error);
-    if(isMissingTableError(error)) showSupabaseSetupNeeded(error.message);
-    return [];
+
+  const keySet = new Set();
+  const addKey = (row) => {
+    const ano = String(row?.ano || '').trim();
+    const mes = String(row?.mes || '').trim().padStart(2,'0');
+    if(/^\d{4}$/.test(ano) && /^\d{2}$/.test(mes)) keySet.add(`${ano}-${mes}`);
+  };
+
+  // Fonte principal: controle de meses.
+  try{
+    const { data, error } = await state.supabase
+      .from('meses_importados')
+      .select('mes,ano')
+      .order('ano', { ascending: true })
+      .order('mes', { ascending: true });
+
+    if(error){
+      console.warn('Aviso buscando meses_importados:', error);
+      if(isMissingTableError(error)) showSupabaseSetupNeeded(error.message);
+    }else{
+      (data || []).forEach(addKey);
+    }
+  }catch(err){
+    console.warn('Falha buscando meses_importados:', err);
   }
-  const keys = Array.from(new Set((data || []).map(r => `${r.ano}-${String(r.mes).padStart(2,'0')}`))).sort();
+
+  // Fallback 1: se o controle de meses estiver incompleto, pega direto do refaturamento.
+  try{
+    const { data, error } = await state.supabase
+      .from('refaturamento_importado')
+      .select('mes,ano');
+
+    if(error){
+      console.warn('Aviso buscando meses em refaturamento_importado:', error);
+    }else{
+      (data || []).forEach(addKey);
+    }
+  }catch(err){
+    console.warn('Falha buscando meses em refaturamento_importado:', err);
+  }
+
+  // Fallback 2: pega meses que tenham só produtividade.
+  try{
+    const { data, error } = await state.supabase
+      .from('produtividade_usuarios')
+      .select('mes,ano');
+
+    if(error){
+      console.warn('Aviso buscando meses em produtividade_usuarios:', error);
+    }else{
+      (data || []).forEach(addKey);
+    }
+  }catch(err){
+    console.warn('Falha buscando meses em produtividade_usuarios:', err);
+  }
+
+  const keys = Array.from(keySet).sort();
   state.remoteMonths = keys;
   refreshMonthViewSelect();
+
+  const status = document.getElementById('syncStatus');
+  if(status && keys.length){
+    status.textContent = `Meses disponíveis na Supabase: ${keys.map(monthLabel).join(', ')}`;
+  }
+  if(status && !keys.length){
+    status.textContent = 'Nenhum mês encontrado na Supabase.';
+  }
+
   return keys;
 }
 async function loadMonthFromSupabase(monthKey){
@@ -2667,7 +2722,10 @@ async function bootstrap(){
   connectSupabase();
   await loadManualFromSupabase();
   renderAll();
-  await fetchRemoteMonthKeys();
+  const keys = await fetchRemoteMonthKeys();
+  if(keys.length && !state.sheets.length){
+    await loadMonthFromSupabase(keys[keys.length - 1]);
+  }
 }
 window.addEventListener('DOMContentLoaded', function(){
   bindMenu();
