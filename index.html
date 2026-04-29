@@ -3000,7 +3000,12 @@ async function loadMonthFromSupabase(monthKey){
   ]);
   if(refError){ document.getElementById('syncStatus').textContent = 'Erro ao carregar refaturamento: ' + refError.message; return false; }
   if(prodError){ document.getElementById('syncStatus').textContent = 'Erro ao carregar produtividade: ' + prodError.message; return false; }
-  const allRef = refData || [];
+  const rawRef = refData || [];
+  const rawProd = prodData || [];
+  const allRef = dedupeRefRows(rawRef);
+  const allProd = dedupeProdRows(rawProd);
+  const ignoredRefDuplicates = Math.max(0, rawRef.length - allRef.length);
+  const ignoredProdDuplicates = Math.max(0, rawProd.length - allProd.length);
   const refRows = allRef.filter(r => r.tipo === 'refaturado');
   const subRows = allRef.filter(r => r.tipo === 'substituto');
   const setorRows = allRef.filter(r => r.tipo === 'setor');
@@ -3026,7 +3031,7 @@ async function loadMonthFromSupabase(monthKey){
     setor: r.setor || 'NÃO IDENTIFICADO', clientGroup: clientGroup(r.cliente || '')
   }));
   state.prodRows = [];
-  (prodData || []).forEach(r => {
+  allProd.forEach(r => {
     const usuario = prodNorm(r.operador || r.usuario || '');
     const push = (tipo, quantidade) => { const q = Number(quantidade || 0); if(q > 0) state.prodRows.push({ usuario, tipo, quantidade:q }); };
     push('ctrc', r.ctrc); push('manifesto', r.manifesto); push('ost', r.ost); push('nf.fat', r.nf_fat);
