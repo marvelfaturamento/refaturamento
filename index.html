@@ -155,18 +155,6 @@
     </section>
 
     <section id="usuarios" class="view">
-  <div class="card" style="margin-bottom:16px; padding:14px 16px;">
-    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap;">
-      <div>
-        <h3 style="margin-bottom:4px;">Filtro geral da análise de usuários</h3>
-        <div class="sub" style="margin-bottom:0;">Filtra os dois gráficos superiores e a tabela de usuários.</div>
-      </div>
-      <div class="field" style="max-width:260px; min-width:200px;">
-        <label>Usuário</label>
-        <select id="usuariosTopSelect"></select>
-      </div>
-    </div>
-  </div>
   <div class="grid grid-2">
     <div class="card"><h3>Usuários que mais cometem erro</h3><div class="sub">Somente setor Faturamento.</div><div class="chart-box"><canvas id="chartUsuariosErroQtd"></canvas></div></div>
     <div class="card"><h3>Usuários que mais cometem erro por valor</h3><div class="sub">Somente setor Faturamento, usando débito.</div><div class="chart-box"><canvas id="chartUsuariosErroValor"></canvas></div></div>
@@ -438,24 +426,16 @@ create table if not exists manual (
 </div>
 
 <script>
-// 🔐 Acesso vindo do menu pai
-const MENU_PAI_URL = "https://menu-rho-olive.vercel.app/";
-const params = new URLSearchParams(window.location.search);
-const perfil = (params.get("perfil") || "").trim().toLowerCase();
+ const params = new URLSearchParams(window.location.search);
+const perfil = params.get("perfil");
 const usuario = params.get("usuario") || "";
-const usuarioRef = (params.get("usuarioRef") || "").trim();
 
 if (!perfil) {
   alert("Acesso não autorizado. Entre pelo menu principal.");
-  window.location.href = MENU_PAI_URL;
+  window.location.href = "https://menu-rho-olive.vercel.app/";
   throw new Error("Acesso bloqueado");
 }
 
-function aclNormUser(v){
-  return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-}
-function aclRestritoPorUsuario(){ return perfil !== "admin" && !!usuarioRef; }
-function aclUserMatch(v){ return aclNormUser(v) === aclNormUser(usuarioRef); }
 const DEFAULT_REASONS = [
   'valor incorreto na tabela','valor incorreto','filial incorreta','CNPJ invertido','série incorreta','pagador incorreto',
   'observação incorreta','emissão indevida','imposto incorreto','remetente incorreto','destinatário incorreto',
@@ -765,6 +745,39 @@ function mapByKey(rows, keyFn){
   rows.forEach(row => map.set(keyFn(row), row));
   return map;
 }
+function dedupeRefRows(rows){
+  const map = new Map();
+  (rows || []).forEach(row => {
+    const key = `${row.ano || ''}|${String(row.mes || '').padStart(2,'0')}|${row.tipo || ''}|${row.documento || ''}`;
+    const prev = map.get(key);
+    if(!prev){
+      map.set(key, row);
+      return;
+    }
+    // Mantém a versão mais completa quando houver duplicidade antiga no banco.
+    const prevScore = (prev.data_baixa ? 10 : 0) + (prev.updated_at ? 1 : 0);
+    const rowScore = (row.data_baixa ? 10 : 0) + (row.updated_at ? 1 : 0);
+    if(rowScore >= prevScore) map.set(key, row);
+  });
+  return Array.from(map.values());
+}
+function dedupeProdRows(rows){
+  const map = new Map();
+  (rows || []).forEach(row => {
+    const key = `${row.ano || ''}|${String(row.mes || '').padStart(2,'0')}|${row.operador || ''}`;
+    const prev = map.get(key);
+    if(!prev){
+      map.set(key, row);
+      return;
+    }
+    const merged = { ...prev };
+    ['ctrc','manifesto','ost','nf_fat','total_docs','docs_performance'].forEach(k => {
+      merged[k] = Math.max(parseNumber(prev[k] || 0), parseNumber(row[k] || 0));
+    });
+    map.set(key, merged);
+  });
+  return Array.from(map.values());
+}
 function sameRefRow(a, b){
   return normalizeRowValue(a.documento_original) === normalizeRowValue(b.documento_original)
     && normalizeRowValue(a.cte) === normalizeRowValue(b.cte)
@@ -826,8 +839,12 @@ async function loadMonthFromSupabase(monthKey){
     return false;
   }
 
-  const allRef = (refData || []).slice().sort((a,b) => String(a.documento || '').localeCompare(String(b.documento || '')));
-  const allProd = (prodData || []).slice().sort((a,b) => String(a.operador || '').localeCompare(String(b.operador || '')));
+  const rawRef = refData || [];
+  const rawProd = prodData || [];
+  const allRef = dedupeRefRows(rawRef).sort((a,b) => String(a.documento || '').localeCompare(String(b.documento || '')));
+  const allProd = dedupeProdRows(rawProd).sort((a,b) => String(a.operador || '').localeCompare(String(b.operador || '')));
+  const ignoredRefDuplicates = Math.max(0, rawRef.length - allRef.length);
+  const ignoredProdDuplicates = Math.max(0, rawProd.length - allProd.length);
   const refRows = allRef.filter(r => r.tipo === 'refaturado');
   const subRows = allRef.filter(r => r.tipo === 'substituto');
   const setorRows = allRef.filter(r => r.tipo === 'setor');
@@ -907,7 +924,8 @@ async function loadMonthFromSupabase(monthKey){
   refreshMonthViewSelect();
   const monthSel = document.getElementById('monthViewSelect');
   if(monthSel) monthSel.value = monthKey;
-  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase.`;
+  const dupMsg = (ignoredRefDuplicates || ignoredProdDuplicates) ? ` Duplicados ignorados no carregamento: Ref ${ignoredRefDuplicates} | Prod ${ignoredProdDuplicates}.` : '';
+  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase.${dupMsg}`;
   renderAll();
   return true;
 }
@@ -966,8 +984,10 @@ async function syncSupabase(){
 
   const refKeyFn = row => `${row.tipo}|${row.documento}`;
   const prodKeyFn = row => `${row.operador}`;
-  const remoteRefMap = mapByKey(remoteRef || [], refKeyFn);
-  const remoteProdMap = mapByKey(remoteProd || [], prodKeyFn);
+  const remoteRefClean = dedupeRefRows(remoteRef || []);
+  const remoteProdClean = dedupeProdRows(remoteProd || []);
+  const remoteRefMap = mapByKey(remoteRefClean, refKeyFn);
+  const remoteProdMap = mapByKey(remoteProdClean, prodKeyFn);
 
   const refToUpsert = refRows.filter(row => {
     const prev = remoteRefMap.get(refKeyFn(row));
@@ -996,7 +1016,7 @@ async function syncSupabase(){
   let prodError = null;
 
   if(refFinal.length){
-    const res = await state.supabase.from('refaturamento_importado').upsert(refFinal, { onConflict:'mes,ano,tipo,documento' });
+    const res = await state.supabase.from('refaturamento_importado').upsert(refFinal, { onConflict:'ano,mes,tipo,documento' });
     refError = res.error || null;
   }
   if(prodFinal.length){
@@ -2656,45 +2676,63 @@ window.addEventListener('DOMContentLoaded', function(){
   bindConfigActions();
   bindExcelImport();
   bindProdExcelImport();
-  // 🔐 CONTROLE DE PERMISSÕES REFATURAMENTO
-  // admin: tudo
-  // operacional: tudo, com filtros de usuário travados pelo usuarioRef
-  // consulta: tudo menos Configuração, com filtros de usuário travados pelo usuarioRef
   const permissoesRefaturamento = {
-    admin: [
-      "dashboard", "registros", "conciliacao", "motivos", "usuarios",
-      "clientes", "setores", "performance", "anual", "cadastro", "config"
-    ],
-    operacional: [
-      "dashboard", "registros", "conciliacao", "motivos", "usuarios",
-      "clientes", "setores", "performance", "anual", "cadastro", "config"
-    ],
-    consulta: [
-      "dashboard", "registros", "conciliacao", "motivos", "usuarios",
-      "clientes", "setores", "performance", "anual", "cadastro"
-    ]
-  };
+  admin: [
+    "dashboard",
+    "registros",
+    "conciliacao",
+    "motivos",
+    "usuarios",
+    "clientes",
+    "setores",
+    "performance",
+    "anual",
+    "cadastro",
+    "config"
+  ],
+  operacional: [
+    "dashboard",
+    "registros",
+    "conciliacao",
+    "motivos",
+    "clientes",
+    "setores",
+    "anual",
+    "cadastro",
+    "config"
+  ],
+  consulta: [
+    "dashboard",
+    "registros",
+    "conciliacao",
+    "motivos",
+    "clientes",
+    "setores",
+    "anual"
+  ]
+};
 
-  const liberadas = permissoesRefaturamento[perfil] || permissoesRefaturamento.consulta;
+const liberadas = permissoesRefaturamento[perfil] || [];
 
-  document.querySelectorAll("[data-view]").forEach(btn => {
-    const view = btn.getAttribute("data-view");
-    if (!liberadas.includes(view)) {
-      btn.style.display = "none";
-    }
-  });
-
-  const viewAtiva = document.querySelector(".view.active");
-  if (viewAtiva && !liberadas.includes(viewAtiva.id)) {
-    const primeiraPermitida = liberadas[0] || "dashboard";
-    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
-    document.querySelectorAll("[data-view]").forEach(b => b.classList.remove("active"));
-    const viewEl = document.getElementById(primeiraPermitida);
-    const btnEl = document.querySelector(`[data-view="${primeiraPermitida}"]`);
-    if (viewEl) viewEl.classList.add("active");
-    if (btnEl) btnEl.classList.add("active");
+document.querySelectorAll("[data-view]").forEach(btn => {
+  const view = btn.getAttribute("data-view");
+  if (!liberadas.includes(view)) {
+    btn.style.display = "none";
   }
+});
 
+const viewAtiva = document.querySelector(".view.active");
+if (viewAtiva && !liberadas.includes(viewAtiva.id)) {
+  const primeiraPermitida = liberadas[0];
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.querySelectorAll("[data-view]").forEach(b => b.classList.remove("active"));
+
+  const viewEl = document.getElementById(primeiraPermitida || "dashboard");
+  const btnEl = document.querySelector(`[data-view="${primeiraPermitida || "dashboard"}"]`);
+
+  if (viewEl) viewEl.classList.add("active");
+  if (btnEl) btnEl.classList.add("active");
+}
   bootstrap();
 });
 
@@ -2998,7 +3036,8 @@ async function loadMonthFromSupabase(monthKey){
   state.annual[monthKey] = { ...currentAnnualSummary(), snapshot };
   writeStorage('painel_ref_annual_v32', state.annual);
   const sel = document.getElementById('monthViewSelect'); if(sel) sel.value = monthKey;
-  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase.`;
+  const dupMsg = (ignoredRefDuplicates || ignoredProdDuplicates) ? ` Duplicados ignorados no carregamento: Ref ${ignoredRefDuplicates} | Prod ${ignoredProdDuplicates}.` : '';
+  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase.${dupMsg}`;
   renderAll();
   return true;
 }
@@ -3115,24 +3154,7 @@ function aggregateUserReasons(rows){
 }
 
 function renderUsuariosView(){
-  const allUserRows = usuariosErroAggregate();
-
-  const topSelect = document.getElementById('usuariosTopSelect');
-  let selectedTopUser = 'TODOS';
-  if(topSelect){
-    const currentTop = topSelect.value || 'TODOS';
-    const allTopUsers = allUserRows.map(x => x.user);
-    topSelect.innerHTML = '<option value="TODOS">Todos</option>' + allTopUsers.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
-    if(currentTop !== 'TODOS' && allTopUsers.includes(currentTop)) topSelect.value = currentTop;
-    else topSelect.value = 'TODOS';
-    selectedTopUser = topSelect.value || 'TODOS';
-  }
-
-  const usersBase = selectedTopUser === 'TODOS'
-    ? allUserRows
-    : allUserRows.filter(x => x.user === selectedTopUser);
-  const users = usersBase.slice(0, selectedTopUser === 'TODOS' ? 10 : 1);
-
+  const users = usuariosErroAggregate().slice(0,10);
   makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
   makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Valor');
   document.getElementById('tbodyUsuarios').innerHTML = users.length
@@ -3140,7 +3162,7 @@ function renderUsuariosView(){
     : `<tr><td colspan="3" class="center muted">Sem dados</td></tr>`;
 
   const select = document.getElementById('usuariosReasonSelect');
-  const allUsers = allUserRows.map(x => x.user);
+  const allUsers = usuariosErroAggregate().map(x => x.user);
   let selectedUser = 'TODOS';
   if(select){
     const current = select.value || 'TODOS';
@@ -3356,100 +3378,7 @@ function exportPainelExcel(){
   }
 }
 
-
-
-// 🔒 BLOQUEIO POR USUÁRIO (usuarioRef) - aplicado sem alterar cálculos originais
-(function(){
-  function isRestricted(){
-    try { return typeof aclRestritoPorUsuario === 'function' && aclRestritoPorUsuario(); }
-    catch(e){ return false; }
-  }
-  function matchUser(v){
-    try { return typeof aclUserMatch === 'function' && aclUserMatch(v); }
-    catch(e){ return false; }
-  }
-  function lockSelect(id){
-    if(!isRestricted()) return;
-    const sel = document.getElementById(id);
-    if(!sel) return;
-    const safe = (typeof esc === 'function') ? esc(usuarioRef) : String(usuarioRef).replace(/[&<>"']/g, '');
-    sel.innerHTML = `<option value="${safe}">${safe}</option>`;
-    sel.value = usuarioRef;
-    sel.disabled = true;
-    sel.title = 'Filtro travado pelo login do menu principal';
-  }
-  function lockAllUserSelects(){
-    lockSelect('usuariosTopSelect');
-    lockSelect('usuariosReasonSelect');
-    lockSelect('performanceUserSelect');
-  }
-
-  try{
-    if(typeof usuariosErroAggregate === 'function'){
-      const originalUsuariosErroAggregate = usuariosErroAggregate;
-      usuariosErroAggregate = function(){
-        const rows = originalUsuariosErroAggregate.apply(this, arguments) || [];
-        return isRestricted() ? rows.filter(x => matchUser(x.user || x.usuario || x.operador)) : rows;
-      };
-    }
-  }catch(e){ console.warn('ACL usuários aggregate:', e); }
-
-  try{
-    if(typeof aggregateProd === 'function'){
-      const originalAggregateProd = aggregateProd;
-      aggregateProd = function(){
-        const rows = originalAggregateProd.apply(this, arguments) || [];
-        return isRestricted() ? rows.filter(x => matchUser(x.usuario || x.user || x.operador)) : rows;
-      };
-    }
-  }catch(e){ console.warn('ACL produtividade aggregate:', e); }
-
-  try{
-    if(typeof getUsuariosReasonDetailRows === 'function'){
-      const originalGetUsuariosReasonDetailRows = getUsuariosReasonDetailRows;
-      getUsuariosReasonDetailRows = function(selectedUser){
-        const forcedUser = isRestricted() ? usuarioRef : selectedUser;
-        const rows = originalGetUsuariosReasonDetailRows.call(this, forcedUser) || [];
-        return isRestricted() ? rows.filter(r => matchUser(r.usuario || r.user || r.operador)) : rows;
-      };
-    }
-  }catch(e){ console.warn('ACL motivos usuário:', e); }
-
-  try{
-    if(typeof renderUsuariosView === 'function'){
-      const originalRenderUsuariosView = renderUsuariosView;
-      renderUsuariosView = function(){
-        const top = document.getElementById('usuariosTopSelect');
-        const reason = document.getElementById('usuariosReasonSelect');
-        if(isRestricted()){
-          if(top) top.value = usuarioRef;
-          if(reason) reason.value = usuarioRef;
-        }
-        const result = originalRenderUsuariosView.apply(this, arguments);
-        lockAllUserSelects();
-        return result;
-      };
-    }
-  }catch(e){ console.warn('ACL render usuários:', e); }
-
-  try{
-    if(typeof renderPerformanceView === 'function'){
-      const originalRenderPerformanceView = renderPerformanceView;
-      renderPerformanceView = function(){
-        const perf = document.getElementById('performanceUserSelect');
-        if(isRestricted() && perf) perf.value = usuarioRef;
-        const result = originalRenderPerformanceView.apply(this, arguments);
-        lockAllUserSelects();
-        return result;
-      };
-    }
-  }catch(e){ console.warn('ACL render performance:', e); }
-
-  document.addEventListener('DOMContentLoaded', lockAllUserSelects);
-})();
-
 document.addEventListener('DOMContentLoaded', function(){
-  document.getElementById('usuariosTopSelect')?.addEventListener('change', renderUsuariosView);
   document.getElementById('usuariosReasonSelect')?.addEventListener('change', renderUsuariosView);
   document.getElementById('setorReasonSelect')?.addEventListener('change', renderSetoresView);
 
