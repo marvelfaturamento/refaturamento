@@ -158,12 +158,12 @@
   <div class="card" style="margin-bottom:16px;">
     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
       <div>
-        <h3>Filtro da análise de usuários</h3>
-        <div class="sub">Controla os gráficos superiores e a tabela de usuários.</div>
+        <h3>Filtro de usuário</h3>
+        <div class="sub">Admin pode selecionar todos. Operacional e consulta ficam travados no próprio usuário.</div>
       </div>
       <div class="field" style="max-width:280px; min-width:200px;">
         <label>Usuário</label>
-        <select id="usuariosTopFilter"></select>
+        <select id="filtroUsuarioTop"></select>
       </div>
     </div>
   </div>
@@ -441,7 +441,38 @@ create table if not exists manual (
  const params = new URLSearchParams(window.location.search);
 const perfil = params.get("perfil");
 const usuario = params.get("usuario") || "";
-const usuarioRef = params.get("usuarioRef") || "";
+const usuarioRefParam = (params.get("usuarioRef") || usuario || "").toLowerCase().trim();
+
+function perfilAtual(){
+  return String(perfil || 'admin').toLowerCase().trim();
+}
+function usuarioRestritoAtual(){
+  return String(usuarioRefParam || '').toLowerCase().trim();
+}
+function usuarioTemRestricao(){
+  return ['operacional','consulta'].includes(perfilAtual()) && !!usuarioRestritoAtual();
+}
+function mesmoUsuarioAcesso(user){
+  if(!usuarioTemRestricao()) return true;
+  return prodNorm(user || '') === prodNorm(usuarioRestritoAtual());
+}
+function aplicarBloqueioSelectUsuario(select){
+  if(!select) return;
+  if(usuarioTemRestricao()){
+    const ref = usuarioRestritoAtual();
+    const exists = Array.from(select.options || []).some(o => prodNorm(o.value) === prodNorm(ref));
+    if(!exists){
+      const opt = document.createElement('option');
+      opt.value = ref;
+      opt.textContent = ref;
+      select.appendChild(opt);
+    }
+    select.value = Array.from(select.options || []).find(o => prodNorm(o.value) === prodNorm(ref))?.value || ref;
+    select.disabled = true;
+  } else {
+    select.disabled = false;
+  }
+}
 
 if (!perfil) {
   alert("Acesso não autorizado. Entre pelo menu principal.");
@@ -506,24 +537,11 @@ function applySnapshot(snapshot){
 function refreshMonthViewSelect(){
   const select = document.getElementById('monthViewSelect');
   if(!select) return;
-
-  const keysSet = new Set([...(Object.keys(state.annual || {})), ...((state.remoteMonths || []))]);
-
-  // Fallback de segurança: se a Supabase ainda não respondeu ou o controle de meses falhou,
-  // mantém os meses do ano atual visíveis para permitir consulta direta pelo botão Consultar.
-  if(!keysSet.size){
-    const year = String(document.getElementById('annualYear')?.value || document.getElementById('prodYear')?.value || new Date().getFullYear());
-    if(/^\d{4}$/.test(year)){
-      for(let i=1;i<=12;i++) keysSet.add(`${year}-${String(i).padStart(2,'0')}`);
-    }
-  }
-
-  const keys = Array.from(keysSet).sort();
+  const keys = Array.from(new Set([...(Object.keys(state.annual || {})), ...((state.remoteMonths || []))])).sort();
   let html = '<option value="">Último importado</option>';
   html += keys.map(k => `<option value="${esc(k)}">${monthLabel(k)}</option>`).join('');
-  const current = state.selectedMonthKey || select.value || '';
   select.innerHTML = html;
-  if(current && keys.includes(current)) select.value = current;
+  select.value = state.selectedMonthKey || '';
 }
 async function applyMonthViewSelection(){
   const select = document.getElementById('monthViewSelect');
@@ -701,8 +719,7 @@ function buildRefRowsForSync(mes, ano){
       frete_refaturado: parseNumber(r.freteRefaturado || 0),
       frete_substituto: 0,
       reduzido: String(r.reduzido || '').trim(),
-      motivo_baixa: String(r.motivoBaixa || '').trim(),
-      data_baixa: toInputDate(r.dataRefaturado) || null
+      motivo_baixa: String(r.motivoBaixa || '').trim()
     });
   });
   (state.substitutos || []).forEach(r => {
@@ -721,8 +738,7 @@ function buildRefRowsForSync(mes, ano){
       frete_refaturado: 0,
       frete_substituto: parseNumber(r.freteSubstituto || 0),
       reduzido: String(r.reduzido || '').trim(),
-      motivo_baixa: String(r.motivoBaixa || '').trim(),
-      data_baixa: toInputDate(r.dataSubstituto) || null
+      motivo_baixa: String(r.motivoBaixa || '').trim()
     });
   });
   (state.setores || []).forEach(s => {
@@ -739,8 +755,7 @@ function buildRefRowsForSync(mes, ano){
       frete_refaturado: 0,
       frete_substituto: 0,
       reduzido: '',
-      motivo_baixa: '',
-      data_baixa: null
+      motivo_baixa: ''
     });
   });
   return rows;
@@ -771,39 +786,6 @@ function mapByKey(rows, keyFn){
   rows.forEach(row => map.set(keyFn(row), row));
   return map;
 }
-function dedupeRefRows(rows){
-  const map = new Map();
-  (rows || []).forEach(row => {
-    const key = `${row.ano || ''}|${String(row.mes || '').padStart(2,'0')}|${row.tipo || ''}|${row.documento || ''}`;
-    const prev = map.get(key);
-    if(!prev){
-      map.set(key, row);
-      return;
-    }
-    // Mantém a versão mais completa quando houver duplicidade antiga no banco.
-    const prevScore = (prev.data_baixa ? 10 : 0) + (prev.updated_at ? 1 : 0);
-    const rowScore = (row.data_baixa ? 10 : 0) + (row.updated_at ? 1 : 0);
-    if(rowScore >= prevScore) map.set(key, row);
-  });
-  return Array.from(map.values());
-}
-function dedupeProdRows(rows){
-  const map = new Map();
-  (rows || []).forEach(row => {
-    const key = `${row.ano || ''}|${String(row.mes || '').padStart(2,'0')}|${row.operador || ''}`;
-    const prev = map.get(key);
-    if(!prev){
-      map.set(key, row);
-      return;
-    }
-    const merged = { ...prev };
-    ['ctrc','manifesto','ost','nf_fat','total_docs','docs_performance'].forEach(k => {
-      merged[k] = Math.max(parseNumber(prev[k] || 0), parseNumber(row[k] || 0));
-    });
-    map.set(key, merged);
-  });
-  return Array.from(map.values());
-}
 function sameRefRow(a, b){
   return normalizeRowValue(a.documento_original) === normalizeRowValue(b.documento_original)
     && normalizeRowValue(a.cte) === normalizeRowValue(b.cte)
@@ -812,7 +794,6 @@ function sameRefRow(a, b){
     && normalizeRowValue(a.setor) === normalizeRowValue(b.setor)
     && normalizeRowValue(a.reduzido) === normalizeRowValue(b.reduzido)
     && normalizeRowValue(a.motivo_baixa) === normalizeRowValue(b.motivo_baixa)
-    && normalizeRowValue(a.data_baixa) === normalizeRowValue(b.data_baixa)
     && normalizeRowValue(parseNumber(a.debito || 0)) === normalizeRowValue(parseNumber(b.debito || 0))
     && normalizeRowValue(parseNumber(a.frete_refaturado || 0)) === normalizeRowValue(parseNumber(b.frete_refaturado || 0))
     && normalizeRowValue(parseNumber(a.frete_substituto || 0)) === normalizeRowValue(parseNumber(b.frete_substituto || 0))
@@ -829,74 +810,19 @@ function sameProdRow(a, b){
 }
 async function fetchRemoteMonthKeys(){
   if(!ensureSupabaseConnected()) return [];
-
-  const keySet = new Set();
-  const addKey = (row) => {
-    const ano = String(row?.ano || '').trim();
-    const mes = String(row?.mes || '').trim().padStart(2,'0');
-    if(/^\d{4}$/.test(ano) && /^\d{2}$/.test(mes)) keySet.add(`${ano}-${mes}`);
-  };
-
-  // Fonte principal: controle de meses.
-  try{
-    const { data, error } = await state.supabase
-      .from('meses_importados')
-      .select('mes,ano')
-      .order('ano', { ascending: true })
-      .order('mes', { ascending: true });
-
-    if(error){
-      console.warn('Aviso buscando meses_importados:', error);
-      if(isMissingTableError(error)) showSupabaseSetupNeeded(error.message);
-    }else{
-      (data || []).forEach(addKey);
-    }
-  }catch(err){
-    console.warn('Falha buscando meses_importados:', err);
+  const { data, error } = await state.supabase
+    .from('meses_importados')
+    .select('mes,ano')
+    .order('ano', { ascending: true })
+    .order('mes', { ascending: true });
+  if(error){
+    console.error('Erro buscando meses importados:', error);
+    if(isMissingTableError(error)) showSupabaseSetupNeeded(error.message);
+    return [];
   }
-
-  // Fallback 1: se o controle de meses estiver incompleto, pega direto do refaturamento.
-  try{
-    const { data, error } = await state.supabase
-      .from('refaturamento_importado')
-      .select('mes,ano');
-
-    if(error){
-      console.warn('Aviso buscando meses em refaturamento_importado:', error);
-    }else{
-      (data || []).forEach(addKey);
-    }
-  }catch(err){
-    console.warn('Falha buscando meses em refaturamento_importado:', err);
-  }
-
-  // Fallback 2: pega meses que tenham só produtividade.
-  try{
-    const { data, error } = await state.supabase
-      .from('produtividade_usuarios')
-      .select('mes,ano');
-
-    if(error){
-      console.warn('Aviso buscando meses em produtividade_usuarios:', error);
-    }else{
-      (data || []).forEach(addKey);
-    }
-  }catch(err){
-    console.warn('Falha buscando meses em produtividade_usuarios:', err);
-  }
-
-  const keys = Array.from(keySet).sort();
+  const keys = Array.from(new Set((data || []).map(r => `${r.ano}-${String(r.mes).padStart(2,'0')}`))).sort();
   state.remoteMonths = keys;
   refreshMonthViewSelect();
-
-  const status = document.getElementById('syncStatus');
-  if(status && keys.length){
-    status.textContent = `Meses disponíveis na Supabase: ${keys.map(monthLabel).join(', ')}`;
-  }
-  if(status && !keys.length){
-    status.textContent = 'Nenhum mês encontrado na Supabase.';
-  }
-
   return keys;
 }
 async function loadMonthFromSupabase(monthKey){
@@ -920,19 +846,15 @@ async function loadMonthFromSupabase(monthKey){
     return false;
   }
 
-  const rawRef = refData || [];
-  const rawProd = prodData || [];
-  const allRef = dedupeRefRows(rawRef).sort((a,b) => String(a.documento || '').localeCompare(String(b.documento || '')));
-  const allProd = dedupeProdRows(rawProd).sort((a,b) => String(a.operador || '').localeCompare(String(b.operador || '')));
-  const ignoredRefDuplicates = Math.max(0, rawRef.length - allRef.length);
-  const ignoredProdDuplicates = Math.max(0, rawProd.length - allProd.length);
+  const allRef = (refData || []).slice().sort((a,b) => String(a.documento || '').localeCompare(String(b.documento || '')));
+  const allProd = (prodData || []).slice().sort((a,b) => String(a.operador || '').localeCompare(String(b.operador || '')));
   const refRows = allRef.filter(r => r.tipo === 'refaturado');
   const subRows = allRef.filter(r => r.tipo === 'substituto');
   const setorRows = allRef.filter(r => r.tipo === 'setor');
 
   state.sheets = ['supabase'];
   state.refaturados = refRows.map(r => ({
-    dataRefaturado: r.data_baixa || '',
+    dataRefaturado: '',
     tomadorRefaturado: r.cliente || '',
     refaturado: r.documento || '',
     freteRefaturado: parseNumber(r.frete_refaturado || 0),
@@ -951,7 +873,7 @@ async function loadMonthFromSupabase(monthKey){
     setorLancamento: r.setor || ''
   }));
   state.substitutos = subRows.map(r => ({
-    dataSubstituto: r.data_baixa || '',
+    dataSubstituto: '',
     tomadorSubstituto: r.cliente || '',
     substituto: r.documento || '',
     freteSubstituto: parseNumber(r.frete_substituto || 0),
@@ -1005,8 +927,7 @@ async function loadMonthFromSupabase(monthKey){
   refreshMonthViewSelect();
   const monthSel = document.getElementById('monthViewSelect');
   if(monthSel) monthSel.value = monthKey;
-  const dupMsg = (ignoredRefDuplicates || ignoredProdDuplicates) ? ` Duplicados ignorados no carregamento: Ref ${ignoredRefDuplicates} | Prod ${ignoredProdDuplicates}.` : '';
-  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase.${dupMsg}`;
+  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase.`;
   renderAll();
   return true;
 }
@@ -1065,10 +986,8 @@ async function syncSupabase(){
 
   const refKeyFn = row => `${row.tipo}|${row.documento}`;
   const prodKeyFn = row => `${row.operador}`;
-  const remoteRefClean = dedupeRefRows(remoteRef || []);
-  const remoteProdClean = dedupeProdRows(remoteProd || []);
-  const remoteRefMap = mapByKey(remoteRefClean, refKeyFn);
-  const remoteProdMap = mapByKey(remoteProdClean, prodKeyFn);
+  const remoteRefMap = mapByKey(remoteRef || [], refKeyFn);
+  const remoteProdMap = mapByKey(remoteProd || [], prodKeyFn);
 
   const refToUpsert = refRows.filter(row => {
     const prev = remoteRefMap.get(refKeyFn(row));
@@ -1097,7 +1016,7 @@ async function syncSupabase(){
   let prodError = null;
 
   if(refFinal.length){
-    const res = await state.supabase.from('refaturamento_importado').upsert(refFinal, { onConflict:'ano,mes,tipo,documento' });
+    const res = await state.supabase.from('refaturamento_importado').upsert(refFinal, { onConflict:'mes,ano,tipo,documento' });
     refError = res.error || null;
   }
   if(prodFinal.length){
@@ -1182,22 +1101,8 @@ function parseNumber(v){
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
-function toInputDate(v){
-  const s = String(v || '').trim();
-  if(!s) return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-  return '';
-}
-function monthKey(v){
-  const iso = toInputDate(v);
-  return iso ? iso.slice(0,7) : '';
-}
-function classifyStatus(reqDate, baixaDate){
-  if(!toInputDate(reqDate)) return 'empty';
-  return monthKey(reqDate) === monthKey(baixaDate) ? 'ok' : 'bad';
-}
+function monthKey(v){ return v ? String(v).slice(0,7) : ''; }
+function classifyStatus(reqDate, baixaDate){ if(!reqDate) return 'empty'; return monthKey(reqDate) === monthKey(baixaDate) ? 'ok' : 'bad'; }
 function statusTag(status){
   if(status === 'ok') return '<span class="tag ok">Mês correto</span>';
   if(status === 'bad') return '<span class="tag bad">Mês diferente</span>';
@@ -1285,79 +1190,7 @@ function inferReasonFromText(text){
   return '';
 }
 function getManual(cte){ return state.manual[cte] || {}; }
-function saveManual(cte, payload){
-  state.manual[cte] = { ...(state.manual[cte] || {}), ...(payload || {}) };
-  writeStorage('painel_ref_manual_v30', state.manual);
-}
-
-function toSqlDate(brDate){
-  const v = String(brDate || '').trim();
-  if(!v) return null;
-  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
-  const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if(m) return `${m[3]}-${m[2]}-${m[1]}`;
-  return null;
-}
-
-function mapManualRowFromSupabase(row){
-  if(!row) return null;
-  const cte = String(row.documento || row.cte || '').trim();
-  if(!cte) return null;
-
-  return {
-    cte,
-    payload: {
-      requestDate: toInputDate(row.solicitacao || ''),
-      reason: row.motivo || '',
-      detail: row.detalhamento || '',
-      audit: String(row.auditoria || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
-    }
-  };
-}
-
-async function loadManualFromSupabase(){
-  if(!ensureSupabaseConnected()) return false;
-  const { data, error } = await state.supabase
-    .from('refaturamento_manual')
-    .select('*');
-
-  if(error){
-    console.error('Erro carregando refaturamento_manual:', error);
-    return false;
-  }
-
-  (data || []).forEach(row => {
-    const mapped = mapManualRowFromSupabase(row);
-    if(mapped) saveManual(mapped.cte, mapped.payload);
-  });
-
-  return true;
-}
-
-async function saveManualToSupabase(cte, payload){
-  if(!ensureSupabaseConnected()){
-    return { ok:false, message:'Supabase não configurada.' };
-  }
-
-  const row = {
-    documento: String(cte || '').trim(),
-    solicitacao: toInputDate(payload.requestDate),
-    motivo: String(payload.reason || '').trim(),
-    detalhamento: String(payload.detail || '').trim(),
-    auditoria: String(payload.audit || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
-  };
-
-  const res = await state.supabase
-    .from('refaturamento_manual')
-    .upsert([row], { onConflict:'documento' });
-
-  if(res.error){
-    console.error('Erro salvando refaturamento_manual:', res.error);
-    return { ok:false, message: res.error?.message || 'Erro ao salvar na Supabase.' };
-  }
-
-  return { ok:true };
-}
+function saveManual(cte, payload){ state.manual[cte] = {...(state.manual[cte] || {}), ...payload}; writeStorage('painel_ref_manual_v30', state.manual); }
 function destroyChart(name){ if(state.charts[name]) state.charts[name].destroy(); }
 function makeBarChart(id, labels, data, horizontal=false, label='Valor'){
   destroyChart(id);
@@ -1902,7 +1735,7 @@ function renderManualTable(){
         <td><strong>${esc(r.refaturado)}</strong></td>
         <td>${esc(r.tomadorRefaturado || '-')}</td>
         <td>${displayDate(r.dataRefaturado)}</td>
-        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(toInputDate(manual.requestDate || ''))}"></td>
+        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(manual.requestDate || '')}"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="reason">${options.replace(`value="${esc(motivo)}"`,`value="${esc(motivo)}" selected`)}</select></td>
         <td><input class="manual-input" data-cte="${esc(r.refaturado)}" data-field="detail" value="${esc(manual.detail || '')}" placeholder="Detalhar"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="audit"><option value="nao" ${manual.audit === 'nao' || !manual.audit ? 'selected' : ''}>Não</option><option value="sim" ${manual.audit === 'sim' ? 'selected' : ''}>Sim</option></select></td>
@@ -2290,7 +2123,7 @@ function renderManualTable(){
         <td><strong>${esc(r.refaturado)}</strong></td>
         <td>${esc(r.tomadorRefaturado || '-')}</td>
         <td>${displayDate(r.dataRefaturado)}</td>
-        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(toInputDate(manual.requestDate || ''))}"></td>
+        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(manual.requestDate || '')}"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="reason">${options.replace(`value="${esc(motivo)}"`,`value="${esc(motivo)}" selected`)}</select></td>
         <td><input class="manual-input" data-cte="${esc(r.refaturado)}" data-field="detail" value="${esc(manual.detail || '')}" placeholder="Detalhar"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="audit"><option value="nao" ${manual.audit === 'nao' || !manual.audit ? 'selected' : ''}>Não</option><option value="sim" ${manual.audit === 'sim' ? 'selected' : ''}>Sim</option></select></td>
@@ -2606,23 +2439,16 @@ function bindFilters(){
   });
 }
 function bindManualSave(){
-  document.addEventListener('click', async function(e){
+  document.addEventListener('click', function(e){
     const btn = e.target.closest('.btn-save-manual');
     if(!btn) return;
     const cte = btn.getAttribute('data-cte');
     const fields = Array.from(document.querySelectorAll(`.manual-input[data-cte="${cte}"]`));
     const payload = {};
     fields.forEach(field => { payload[field.getAttribute('data-field')] = field.value; });
-
     saveManual(cte, payload);
-    const result = await saveManualToSupabase(cte, payload);
     renderAll();
-
-    if(result.ok){
-      alert('Cadastro salvo com sucesso.');
-    }else{
-      alert('Salvou localmente, mas não conseguiu salvar na Supabase: ' + result.message);
-    }
+    alert('Cadastro salvo com sucesso.');
   });
 }
 function bindConfigActions(){
@@ -2746,12 +2572,8 @@ function bindProdExcelImport(){
 async function bootstrap(){
   document.getElementById('reasonBox').value = state.reasons.join('\n');
   connectSupabase();
-  await loadManualFromSupabase();
   renderAll();
-  const keys = await fetchRemoteMonthKeys();
-  if(keys.length && !state.sheets.length){
-    await loadMonthFromSupabase(keys[keys.length - 1]);
-  }
+  await fetchRemoteMonthKeys();
 }
 window.addEventListener('DOMContentLoaded', function(){
   bindMenu();
@@ -2760,7 +2582,6 @@ window.addEventListener('DOMContentLoaded', function(){
   bindConfigActions();
   bindExcelImport();
   bindProdExcelImport();
-  const perfilNormalizado = normalizeText(perfil || '');
   const permissoesRefaturamento = {
   admin: [
     "dashboard",
@@ -2801,7 +2622,7 @@ window.addEventListener('DOMContentLoaded', function(){
   ]
 };
 
-const liberadas = permissoesRefaturamento[perfilNormalizado] || [];
+const liberadas = permissoesRefaturamento[perfil] || [];
 
 document.querySelectorAll("[data-view]").forEach(btn => {
   const view = btn.getAttribute("data-view");
@@ -2894,20 +2715,26 @@ function renderUsuariosView(){
 }
 
 function renderPerformanceView(){
-  const rows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
+  const allRows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
+  const rows = usuarioTemRestricao() ? allRows.filter(x => mesmoUsuarioAcesso(x.usuario)) : allRows;
   const select = document.getElementById('performanceUserSelect');
   let selectedUser = 'TODOS';
   if(select){
     const cur = select.value || 'TODOS';
     select.innerHTML = '<option value="TODOS">Todos</option>' + rows.map(x => `<option value="${esc(x.usuario)}">${esc(x.usuario)}</option>`).join('');
-    if(cur !== 'TODOS' && rows.some(x => x.usuario === cur)) select.value = cur;
-    else select.value = 'TODOS';
-    selectedUser = select.value;
+    if(usuarioTemRestricao()){
+      aplicarBloqueioSelectUsuario(select);
+      selectedUser = select.value || usuarioRestritoAtual();
+    } else {
+      if(cur !== 'TODOS' && rows.some(x => x.usuario === cur)) select.value = cur;
+      else select.value = 'TODOS';
+      selectedUser = select.value;
+    }
   }
 
   const sourceRows = selectedUser === 'TODOS'
     ? rows
-    : rows.filter(x => x.usuario === selectedUser);
+    : rows.filter(x => prodNorm(x.usuario) === prodNorm(selectedUser));
 
   makeBarChart('chartProdUsuarioMes', sourceRows.map(x => x.usuario), sourceRows.map(x => x.totalDocs), true, 'Quantidade');
 
@@ -3089,18 +2916,13 @@ async function loadMonthFromSupabase(monthKey){
   ]);
   if(refError){ document.getElementById('syncStatus').textContent = 'Erro ao carregar refaturamento: ' + refError.message; return false; }
   if(prodError){ document.getElementById('syncStatus').textContent = 'Erro ao carregar produtividade: ' + prodError.message; return false; }
-  const rawRef = refData || [];
-  const rawProd = prodData || [];
-  const allRef = dedupeRefRows(rawRef);
-  const allProd = dedupeProdRows(rawProd);
-  const ignoredRefDuplicates = Math.max(0, rawRef.length - allRef.length);
-  const ignoredProdDuplicates = Math.max(0, rawProd.length - allProd.length);
+  const allRef = refData || [];
   const refRows = allRef.filter(r => r.tipo === 'refaturado');
   const subRows = allRef.filter(r => r.tipo === 'substituto');
   const setorRows = allRef.filter(r => r.tipo === 'setor');
   state.sheets = ['supabase'];
   state.refaturados = refRows.map(r => ({
-    dataRefaturado: r.data_baixa || '', tomadorRefaturado: r.cliente || '', refaturado: r.documento || '',
+    dataRefaturado: '', tomadorRefaturado: r.cliente || '', refaturado: r.documento || '',
     freteRefaturado: parseNumber(r.frete_refaturado || 0), dataOriginal: '', operadorOriginal: r.operador || r.usuario || '',
     tomadorOriginal: r.cliente || '', original: r.documento_original || r.original_doc || '', freteOriginal: parseNumber(r.frete_original || 0),
     diferenca: 0, reduzido: sectorNormalize(r.reduzido || r.setor || ''), motivoBaixa: r.motivo_baixa || '',
@@ -3108,7 +2930,7 @@ async function loadMonthFromSupabase(monthKey){
     debit: parseNumber(r.debito || 0), userSetor: r.operador || r.usuario || '', setorLancamento: r.setor || ''
   }));
   state.substitutos = subRows.map(r => ({
-    dataSubstituto: r.data_baixa || '', tomadorSubstituto: r.cliente || '', substituto: r.documento || '',
+    dataSubstituto: '', tomadorSubstituto: r.cliente || '', substituto: r.documento || '',
     freteSubstituto: parseNumber(r.frete_substituto || 0), dataOriginal: '', operadorOriginal: r.operador || r.usuario || '',
     tomadorOriginal: r.cliente || '', original: r.documento_original || r.original_doc || '', freteOriginal: parseNumber(r.frete_original || 0),
     diferenca: 0, reduzido: sectorNormalize(r.reduzido || r.setor || ''), motivoBaixa: r.motivo_baixa || '',
@@ -3120,7 +2942,7 @@ async function loadMonthFromSupabase(monthKey){
     setor: r.setor || 'NÃO IDENTIFICADO', clientGroup: clientGroup(r.cliente || '')
   }));
   state.prodRows = [];
-  allProd.forEach(r => {
+  (prodData || []).forEach(r => {
     const usuario = prodNorm(r.operador || r.usuario || '');
     const push = (tipo, quantidade) => { const q = Number(quantidade || 0); if(q > 0) state.prodRows.push({ usuario, tipo, quantidade:q }); };
     push('ctrc', r.ctrc); push('manifesto', r.manifesto); push('ost', r.ost); push('nf.fat', r.nf_fat);
@@ -3130,8 +2952,7 @@ async function loadMonthFromSupabase(monthKey){
   state.annual[monthKey] = { ...currentAnnualSummary(), snapshot };
   writeStorage('painel_ref_annual_v32', state.annual);
   const sel = document.getElementById('monthViewSelect'); if(sel) sel.value = monthKey;
-  const dupMsg = (ignoredRefDuplicates || ignoredProdDuplicates) ? ` Duplicados ignorados no carregamento: Ref ${ignoredRefDuplicates} | Prod ${ignoredProdDuplicates}.` : '';
-  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase.${dupMsg}`;
+  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase.`;
   renderAll();
   return true;
 }
@@ -3145,12 +2966,11 @@ async function applyMonthViewSelection(){
     renderAll();
     return;
   }
-
-  // Primeiro tenta carregar diretamente da Supabase. Assim o painel não depende
-  // do controle meses_importados estar perfeito para conseguir consultar um mês.
-  const loadedRemote = await loadMonthFromSupabase(key);
-  if(loadedRemote) return;
-
+  const remoteKeys = await fetchRemoteMonthKeys();
+  if(remoteKeys.includes(key)){
+    await loadMonthFromSupabase(key);
+    return;
+  }
   const entry = state.annual[key];
   if(entry && entry.snapshot){
     state.selectedMonthKey = key;
@@ -3248,43 +3068,28 @@ function aggregateUserReasons(rows){
   return Array.from(map.values()).sort((a,b) => b.qty - a.qty || b.value - a.value || a.motivo.localeCompare(b.motivo));
 }
 
-function getForcedUsuarioFiltro(){
-  const u = prodNorm(usuarioRef || usuario || '');
-  if(perfil && perfil !== 'admin' && u) return u;
-  return '';
-}
+function renderUsuariosView(){
+  const allUsersRows = usuariosErroAggregate();
 
-function syncUsuariosTopFilter(allUsers){
-  const select = document.getElementById('usuariosTopFilter');
-  if(!select) return 'TODOS';
-
-  const forced = getForcedUsuarioFiltro();
-  const normalizedUsers = allUsers.map(x => x.user);
-  const current = select.value || 'TODOS';
-
-  if(forced){
-    const label = normalizedUsers.find(u => prodNorm(u) === forced) || forced;
-    select.innerHTML = `<option value="${esc(label)}">${esc(label)}</option>`;
-    select.value = label;
-    select.disabled = true;
-    return label;
+  const topSelect = document.getElementById('filtroUsuarioTop');
+  let selectedTopUser = 'TODOS';
+  if(topSelect){
+    const current = topSelect.value || 'TODOS';
+    topSelect.innerHTML = '<option value="TODOS">Todos</option>' + allUsersRows.map(x => `<option value="${esc(x.user)}">${esc(x.user)}</option>`).join('');
+    if(usuarioTemRestricao()){
+      aplicarBloqueioSelectUsuario(topSelect);
+      selectedTopUser = topSelect.value || usuarioRestritoAtual();
+    } else {
+      topSelect.value = current !== 'TODOS' && allUsersRows.some(x => x.user === current) ? current : 'TODOS';
+      selectedTopUser = topSelect.value;
+    }
   }
 
-  select.disabled = false;
-  select.innerHTML = '<option value="TODOS">Todos</option>' + normalizedUsers.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
-  if(current !== 'TODOS' && normalizedUsers.includes(current)) select.value = current;
-  else select.value = 'TODOS';
-  return select.value || 'TODOS';
-}
+  const usersBase = selectedTopUser === 'TODOS'
+    ? allUsersRows
+    : allUsersRows.filter(x => prodNorm(x.user) === prodNorm(selectedTopUser));
+  const users = usersBase.slice(0,10);
 
-function renderUsuariosView(){
-  const allUsersAgg = usuariosErroAggregate();
-  const topSelectedUser = syncUsuariosTopFilter(allUsersAgg);
-  const filteredUsers = topSelectedUser && topSelectedUser !== 'TODOS'
-    ? allUsersAgg.filter(x => prodNorm(x.user) === prodNorm(topSelectedUser)).slice(0,10)
-    : allUsersAgg.slice(0,10);
-
-  const users = filteredUsers;
   makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
   makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Valor');
   document.getElementById('tbodyUsuarios').innerHTML = users.length
@@ -3292,14 +3097,21 @@ function renderUsuariosView(){
     : `<tr><td colspan="3" class="center muted">Sem dados</td></tr>`;
 
   const select = document.getElementById('usuariosReasonSelect');
-  const allUsers = allUsersAgg.map(x => x.user);
+  const allUsers = allUsersRows.map(x => x.user);
   let selectedUser = 'TODOS';
   if(select){
     const current = select.value || 'TODOS';
     select.innerHTML = '<option value="TODOS">Todos</option>' + allUsers.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
-    if(current !== 'TODOS' && allUsers.includes(current)) select.value = current;
-    else select.value = 'TODOS';
-    selectedUser = select.value;
+    if(usuarioTemRestricao()){
+      aplicarBloqueioSelectUsuario(select);
+      selectedUser = select.value || usuarioRestritoAtual();
+    } else if(current !== 'TODOS' && allUsers.includes(current)) {
+      select.value = current;
+      selectedUser = current;
+    } else {
+      select.value = 'TODOS';
+      selectedUser = 'TODOS';
+    }
   }
 
   const detailRows = getUsuariosReasonDetailRows(selectedUser);
@@ -3508,114 +3320,8 @@ function exportPainelExcel(){
   }
 }
 
-
-
-// --- v9 acessos: admin livre; operacional/consulta travados no próprio usuário ---
-function perfilAtual(){
-  return normalizeText(perfil || '');
-}
-function isAdminPerfil(){
-  return perfilAtual() === 'admin';
-}
-function getUsuarioAcessoNormalizado(){
-  return prodNorm(usuarioRef || usuario || '');
-}
-function getForcedUsuarioFiltro(){
-  const u = getUsuarioAcessoNormalizado();
-  // Qualquer perfil diferente de admin fica travado no próprio usuário quando usuarioRef/usuario vier na URL.
-  if(!isAdminPerfil() && u) return u;
-  return '';
-}
-function setLockedUserSelect(select, users, forced){
-  if(!select) return 'TODOS';
-  const normalizedUsers = (users || []).map(u => String(u || '')).filter(Boolean);
-  if(forced){
-    const label = normalizedUsers.find(u => prodNorm(u) === forced) || forced;
-    select.innerHTML = `<option value="${esc(label)}">${esc(label)}</option>`;
-    select.value = label;
-    select.disabled = true;
-    return label;
-  }
-  const current = select.value || 'TODOS';
-  select.disabled = false;
-  select.innerHTML = '<option value="TODOS">Todos</option>' + normalizedUsers.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
-  if(current !== 'TODOS' && normalizedUsers.includes(current)) select.value = current;
-  else select.value = 'TODOS';
-  return select.value || 'TODOS';
-}
-function syncUsuariosTopFilter(allUsers){
-  const select = document.getElementById('usuariosTopFilter');
-  return setLockedUserSelect(select, (allUsers || []).map(x => x.user), getForcedUsuarioFiltro());
-}
-function renderUsuariosView(){
-  const allUsersAgg = usuariosErroAggregate();
-  const forced = getForcedUsuarioFiltro();
-  const topSelectedUser = syncUsuariosTopFilter(allUsersAgg);
-  const selectedNorm = forced || (topSelectedUser && topSelectedUser !== 'TODOS' ? prodNorm(topSelectedUser) : '');
-  const users = selectedNorm
-    ? allUsersAgg.filter(x => prodNorm(x.user) === selectedNorm).slice(0,10)
-    : allUsersAgg.slice(0,10);
-
-  makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
-  makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Valor');
-  document.getElementById('tbodyUsuarios').innerHTML = users.length
-    ? users.map(x => `<tr><td>${esc(x.user)}</td><td>${x.qty}</td><td>${fmtMoney(x.value)}</td></tr>`).join('')
-    : `<tr><td colspan="3" class="center muted">Sem dados</td></tr>`;
-
-  const allUsers = allUsersAgg.map(x => x.user);
-  const detailSelect = document.getElementById('usuariosReasonSelect');
-  const selectedDetailUser = setLockedUserSelect(detailSelect, allUsers, forced);
-  const detailRows = getUsuariosReasonDetailRows(selectedDetailUser);
-  const reasonAgg = aggregateUserReasons(detailRows).slice(0,12);
-  makeBarChart('chartUsuarioMotivosQtd', reasonAgg.map(x=>x.motivo), reasonAgg.map(x=>x.qty), true, 'Quantidade');
-  makeBarChart('chartUsuarioMotivosValor', reasonAgg.map(x=>x.motivo), reasonAgg.map(x=>x.value), true, 'Valor');
-
-  document.getElementById('tbodyUsuariosMotivos').innerHTML = detailRows.length
-    ? detailRows.map(r => `<tr><td><strong>${esc(r.cte)}</strong></td><td>${esc(r.cliente || '-')}</td><td>${esc(r.usuario)}</td><td>${esc(r.motivo)}</td><td>${fmtMoney(r.valor)}</td><td>${esc(r.setor)}</td></tr>`).join('')
-    : `<tr><td colspan="6" class="center muted">Sem dados para o usuário selecionado</td></tr>`;
-}
-function renderPerformanceView(){
-  const rows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
-  const select = document.getElementById('performanceUserSelect');
-  const selectedUser = setLockedUserSelect(select, rows.map(x => x.usuario), getForcedUsuarioFiltro());
-  const selectedNorm = selectedUser && selectedUser !== 'TODOS' ? prodNorm(selectedUser) : '';
-  const sourceRows = selectedNorm ? rows.filter(x => prodNorm(x.usuario) === selectedNorm) : rows;
-
-  makeBarChart('chartProdUsuarioMes', sourceRows.map(x => x.usuario), sourceRows.map(x => x.totalDocs), true, 'Quantidade');
-
-  const docs = ['ctrc','manifesto','nf.fat','ost'];
-  if(sourceRows.length === 1){
-    const selected = sourceRows[0];
-    makeBarChart('chartProdTiposMes', docs.map(d => d.toUpperCase()), docs.map(d => Number(selected[d]||0)), false, 'Quantidade');
-  } else {
-    const sums = Object.fromEntries(docs.map(d => [d,0]));
-    sourceRows.forEach(r => docs.forEach(d => sums[d] += Number(r[d]||0)));
-    makeBarChart('chartProdTiposMes', docs.map(d => d.toUpperCase()), docs.map(d => sums[d]), false, 'Quantidade');
-  }
-
-  const perfRows = sourceRows.filter(x => x.performance !== null && (x.totalDocs > 0 || x.erros > 0)).sort((a,b) => b.performance - a.performance);
-  destroyChart('chartPerformance');
-  const ctxPerf = document.getElementById('chartPerformance');
-  if(ctxPerf){
-    state.charts.chartPerformance = new Chart(ctxPerf, {
-      type:'bar',
-      data:{ labels: perfRows.map(x => x.usuario), datasets:[{ label:'Performance', data: perfRows.map(x => x.performance), backgroundColor: perfRows.map(x => x.performance >= 99.51 ? '#12c97a' : (x.performance >= 97 ? '#f4c20d' : '#ef4444')), borderWidth:1 }] },
-      options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{ padding:{ left:6, right:60 } }, plugins:{ legend:{ labels:{ color:'#fff' } }, tooltip:{ callbacks:{ label: ctx => `${Number(ctx.raw).toFixed(2)}%` } }, datalabels:{ color:'#fff', anchor:'end', align:'right', formatter:v => `${Number(v).toFixed(2)}%`, font:{weight:'700'} } }, scales:{ x:{ min:0, max:100, ticks:{color:'#cfe0ff'}, grid:{color:'rgba(255,255,255,.05)'} }, y:{ ticks:{color:'#cfe0ff'}, grid:{color:'rgba(255,255,255,.05)'} } } }
-    });
-  }
-
-  const ranges = { 'Ótimo':0, 'Regular':0, 'Ruim':0, 'Sem base':0 };
-  sourceRows.forEach(x => {
-    if(x.performance === null) ranges['Sem base'] += 1;
-    else if(x.performance >= 99.51) ranges['Ótimo'] += 1;
-    else if(x.performance >= 97) ranges['Regular'] += 1;
-    else ranges['Ruim'] += 1;
-  });
-  makeDoughnut('chartPerformancePie', Object.keys(ranges), Object.values(ranges));
-}
-
 document.addEventListener('DOMContentLoaded', function(){
-  document.getElementById('usuariosTopFilter')?.addEventListener('change', renderUsuariosView);
+  document.getElementById('filtroUsuarioTop')?.addEventListener('change', renderUsuariosView);
   document.getElementById('usuariosReasonSelect')?.addEventListener('change', renderUsuariosView);
   document.getElementById('setorReasonSelect')?.addEventListener('change', renderSetoresView);
 
