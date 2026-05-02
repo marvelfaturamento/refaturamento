@@ -155,6 +155,18 @@
     </section>
 
     <section id="usuarios" class="view">
+  <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+      <div>
+        <h3>Filtro da análise de usuários</h3>
+        <div class="sub">Controla os gráficos superiores e a tabela de usuários.</div>
+      </div>
+      <div class="field" style="max-width:280px; min-width:200px;">
+        <label>Usuário</label>
+        <select id="usuariosTopFilter"></select>
+      </div>
+    </div>
+  </div>
   <div class="grid grid-2">
     <div class="card"><h3>Usuários que mais cometem erro</h3><div class="sub">Somente setor Faturamento.</div><div class="chart-box"><canvas id="chartUsuariosErroQtd"></canvas></div></div>
     <div class="card"><h3>Usuários que mais cometem erro por valor</h3><div class="sub">Somente setor Faturamento, usando débito.</div><div class="chart-box"><canvas id="chartUsuariosErroValor"></canvas></div></div>
@@ -429,6 +441,7 @@ create table if not exists manual (
  const params = new URLSearchParams(window.location.search);
 const perfil = params.get("perfil");
 const usuario = params.get("usuario") || "";
+const usuarioRef = params.get("usuarioRef") || "";
 
 if (!perfil) {
   alert("Acesso não autorizado. Entre pelo menu principal.");
@@ -3216,8 +3229,43 @@ function aggregateUserReasons(rows){
   return Array.from(map.values()).sort((a,b) => b.qty - a.qty || b.value - a.value || a.motivo.localeCompare(b.motivo));
 }
 
+function getForcedUsuarioFiltro(){
+  const u = prodNorm(usuarioRef || usuario || '');
+  if(perfil && perfil !== 'admin' && u) return u;
+  return '';
+}
+
+function syncUsuariosTopFilter(allUsers){
+  const select = document.getElementById('usuariosTopFilter');
+  if(!select) return 'TODOS';
+
+  const forced = getForcedUsuarioFiltro();
+  const normalizedUsers = allUsers.map(x => x.user);
+  const current = select.value || 'TODOS';
+
+  if(forced){
+    const label = normalizedUsers.find(u => prodNorm(u) === forced) || forced;
+    select.innerHTML = `<option value="${esc(label)}">${esc(label)}</option>`;
+    select.value = label;
+    select.disabled = true;
+    return label;
+  }
+
+  select.disabled = false;
+  select.innerHTML = '<option value="TODOS">Todos</option>' + normalizedUsers.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
+  if(current !== 'TODOS' && normalizedUsers.includes(current)) select.value = current;
+  else select.value = 'TODOS';
+  return select.value || 'TODOS';
+}
+
 function renderUsuariosView(){
-  const users = usuariosErroAggregate().slice(0,10);
+  const allUsersAgg = usuariosErroAggregate();
+  const topSelectedUser = syncUsuariosTopFilter(allUsersAgg);
+  const filteredUsers = topSelectedUser && topSelectedUser !== 'TODOS'
+    ? allUsersAgg.filter(x => prodNorm(x.user) === prodNorm(topSelectedUser)).slice(0,10)
+    : allUsersAgg.slice(0,10);
+
+  const users = filteredUsers;
   makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
   makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Valor');
   document.getElementById('tbodyUsuarios').innerHTML = users.length
@@ -3225,7 +3273,7 @@ function renderUsuariosView(){
     : `<tr><td colspan="3" class="center muted">Sem dados</td></tr>`;
 
   const select = document.getElementById('usuariosReasonSelect');
-  const allUsers = usuariosErroAggregate().map(x => x.user);
+  const allUsers = allUsersAgg.map(x => x.user);
   let selectedUser = 'TODOS';
   if(select){
     const current = select.value || 'TODOS';
@@ -3442,6 +3490,7 @@ function exportPainelExcel(){
 }
 
 document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('usuariosTopFilter')?.addEventListener('change', renderUsuariosView);
   document.getElementById('usuariosReasonSelect')?.addEventListener('change', renderUsuariosView);
   document.getElementById('setorReasonSelect')?.addEventListener('change', renderSetoresView);
 
