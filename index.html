@@ -506,11 +506,24 @@ function applySnapshot(snapshot){
 function refreshMonthViewSelect(){
   const select = document.getElementById('monthViewSelect');
   if(!select) return;
-  const keys = Array.from(new Set([...(Object.keys(state.annual || {})), ...((state.remoteMonths || []))])).sort();
+
+  const keysSet = new Set([...(Object.keys(state.annual || {})), ...((state.remoteMonths || []))]);
+
+  // Fallback de segurança: se a Supabase ainda não respondeu ou o controle de meses falhou,
+  // mantém os meses do ano atual visíveis para permitir consulta direta pelo botão Consultar.
+  if(!keysSet.size){
+    const year = String(document.getElementById('annualYear')?.value || document.getElementById('prodYear')?.value || new Date().getFullYear());
+    if(/^\d{4}$/.test(year)){
+      for(let i=1;i<=12;i++) keysSet.add(`${year}-${String(i).padStart(2,'0')}`);
+    }
+  }
+
+  const keys = Array.from(keysSet).sort();
   let html = '<option value="">Último importado</option>';
   html += keys.map(k => `<option value="${esc(k)}">${monthLabel(k)}</option>`).join('');
+  const current = state.selectedMonthKey || select.value || '';
   select.innerHTML = html;
-  select.value = state.selectedMonthKey || '';
+  if(current && keys.includes(current)) select.value = current;
 }
 async function applyMonthViewSelection(){
   const select = document.getElementById('monthViewSelect');
@@ -3132,11 +3145,12 @@ async function applyMonthViewSelection(){
     renderAll();
     return;
   }
-  const remoteKeys = await fetchRemoteMonthKeys();
-  if(remoteKeys.includes(key)){
-    await loadMonthFromSupabase(key);
-    return;
-  }
+
+  // Primeiro tenta carregar diretamente da Supabase. Assim o painel não depende
+  // do controle meses_importados estar perfeito para conseguir consultar um mês.
+  const loadedRemote = await loadMonthFromSupabase(key);
+  if(loadedRemote) return;
+
   const entry = state.annual[key];
   if(entry && entry.snapshot){
     state.selectedMonthKey = key;
