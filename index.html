@@ -2747,6 +2747,7 @@ window.addEventListener('DOMContentLoaded', function(){
   bindConfigActions();
   bindExcelImport();
   bindProdExcelImport();
+  const perfilNormalizado = normalizeText(perfil || '');
   const permissoesRefaturamento = {
   admin: [
     "dashboard",
@@ -2766,8 +2767,10 @@ window.addEventListener('DOMContentLoaded', function(){
     "registros",
     "conciliacao",
     "motivos",
+    "usuarios",
     "clientes",
     "setores",
+    "performance",
     "anual",
     "cadastro",
     "config"
@@ -2777,13 +2780,15 @@ window.addEventListener('DOMContentLoaded', function(){
     "registros",
     "conciliacao",
     "motivos",
+    "usuarios",
     "clientes",
     "setores",
+    "performance",
     "anual"
   ]
 };
 
-const liberadas = permissoesRefaturamento[perfil] || [];
+const liberadas = permissoesRefaturamento[perfilNormalizado] || [];
 
 document.querySelectorAll("[data-view]").forEach(btn => {
   const view = btn.getAttribute("data-view");
@@ -3487,6 +3492,112 @@ function exportPainelExcel(){
     console.error(err);
     alert('Erro ao exportar Excel: ' + (err?.message || err));
   }
+}
+
+
+
+// --- v9 acessos: admin livre; operacional/consulta travados no próprio usuário ---
+function perfilAtual(){
+  return normalizeText(perfil || '');
+}
+function isAdminPerfil(){
+  return perfilAtual() === 'admin';
+}
+function getUsuarioAcessoNormalizado(){
+  return prodNorm(usuarioRef || usuario || '');
+}
+function getForcedUsuarioFiltro(){
+  const u = getUsuarioAcessoNormalizado();
+  // Qualquer perfil diferente de admin fica travado no próprio usuário quando usuarioRef/usuario vier na URL.
+  if(!isAdminPerfil() && u) return u;
+  return '';
+}
+function setLockedUserSelect(select, users, forced){
+  if(!select) return 'TODOS';
+  const normalizedUsers = (users || []).map(u => String(u || '')).filter(Boolean);
+  if(forced){
+    const label = normalizedUsers.find(u => prodNorm(u) === forced) || forced;
+    select.innerHTML = `<option value="${esc(label)}">${esc(label)}</option>`;
+    select.value = label;
+    select.disabled = true;
+    return label;
+  }
+  const current = select.value || 'TODOS';
+  select.disabled = false;
+  select.innerHTML = '<option value="TODOS">Todos</option>' + normalizedUsers.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
+  if(current !== 'TODOS' && normalizedUsers.includes(current)) select.value = current;
+  else select.value = 'TODOS';
+  return select.value || 'TODOS';
+}
+function syncUsuariosTopFilter(allUsers){
+  const select = document.getElementById('usuariosTopFilter');
+  return setLockedUserSelect(select, (allUsers || []).map(x => x.user), getForcedUsuarioFiltro());
+}
+function renderUsuariosView(){
+  const allUsersAgg = usuariosErroAggregate();
+  const forced = getForcedUsuarioFiltro();
+  const topSelectedUser = syncUsuariosTopFilter(allUsersAgg);
+  const selectedNorm = forced || (topSelectedUser && topSelectedUser !== 'TODOS' ? prodNorm(topSelectedUser) : '');
+  const users = selectedNorm
+    ? allUsersAgg.filter(x => prodNorm(x.user) === selectedNorm).slice(0,10)
+    : allUsersAgg.slice(0,10);
+
+  makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
+  makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Valor');
+  document.getElementById('tbodyUsuarios').innerHTML = users.length
+    ? users.map(x => `<tr><td>${esc(x.user)}</td><td>${x.qty}</td><td>${fmtMoney(x.value)}</td></tr>`).join('')
+    : `<tr><td colspan="3" class="center muted">Sem dados</td></tr>`;
+
+  const allUsers = allUsersAgg.map(x => x.user);
+  const detailSelect = document.getElementById('usuariosReasonSelect');
+  const selectedDetailUser = setLockedUserSelect(detailSelect, allUsers, forced);
+  const detailRows = getUsuariosReasonDetailRows(selectedDetailUser);
+  const reasonAgg = aggregateUserReasons(detailRows).slice(0,12);
+  makeBarChart('chartUsuarioMotivosQtd', reasonAgg.map(x=>x.motivo), reasonAgg.map(x=>x.qty), true, 'Quantidade');
+  makeBarChart('chartUsuarioMotivosValor', reasonAgg.map(x=>x.motivo), reasonAgg.map(x=>x.value), true, 'Valor');
+
+  document.getElementById('tbodyUsuariosMotivos').innerHTML = detailRows.length
+    ? detailRows.map(r => `<tr><td><strong>${esc(r.cte)}</strong></td><td>${esc(r.cliente || '-')}</td><td>${esc(r.usuario)}</td><td>${esc(r.motivo)}</td><td>${fmtMoney(r.valor)}</td><td>${esc(r.setor)}</td></tr>`).join('')
+    : `<tr><td colspan="6" class="center muted">Sem dados para o usuário selecionado</td></tr>`;
+}
+function renderPerformanceView(){
+  const rows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
+  const select = document.getElementById('performanceUserSelect');
+  const selectedUser = setLockedUserSelect(select, rows.map(x => x.usuario), getForcedUsuarioFiltro());
+  const selectedNorm = selectedUser && selectedUser !== 'TODOS' ? prodNorm(selectedUser) : '';
+  const sourceRows = selectedNorm ? rows.filter(x => prodNorm(x.usuario) === selectedNorm) : rows;
+
+  makeBarChart('chartProdUsuarioMes', sourceRows.map(x => x.usuario), sourceRows.map(x => x.totalDocs), true, 'Quantidade');
+
+  const docs = ['ctrc','manifesto','nf.fat','ost'];
+  if(sourceRows.length === 1){
+    const selected = sourceRows[0];
+    makeBarChart('chartProdTiposMes', docs.map(d => d.toUpperCase()), docs.map(d => Number(selected[d]||0)), false, 'Quantidade');
+  } else {
+    const sums = Object.fromEntries(docs.map(d => [d,0]));
+    sourceRows.forEach(r => docs.forEach(d => sums[d] += Number(r[d]||0)));
+    makeBarChart('chartProdTiposMes', docs.map(d => d.toUpperCase()), docs.map(d => sums[d]), false, 'Quantidade');
+  }
+
+  const perfRows = sourceRows.filter(x => x.performance !== null && (x.totalDocs > 0 || x.erros > 0)).sort((a,b) => b.performance - a.performance);
+  destroyChart('chartPerformance');
+  const ctxPerf = document.getElementById('chartPerformance');
+  if(ctxPerf){
+    state.charts.chartPerformance = new Chart(ctxPerf, {
+      type:'bar',
+      data:{ labels: perfRows.map(x => x.usuario), datasets:[{ label:'Performance', data: perfRows.map(x => x.performance), backgroundColor: perfRows.map(x => x.performance >= 99.51 ? '#12c97a' : (x.performance >= 97 ? '#f4c20d' : '#ef4444')), borderWidth:1 }] },
+      options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{ padding:{ left:6, right:60 } }, plugins:{ legend:{ labels:{ color:'#fff' } }, tooltip:{ callbacks:{ label: ctx => `${Number(ctx.raw).toFixed(2)}%` } }, datalabels:{ color:'#fff', anchor:'end', align:'right', formatter:v => `${Number(v).toFixed(2)}%`, font:{weight:'700'} } }, scales:{ x:{ min:0, max:100, ticks:{color:'#cfe0ff'}, grid:{color:'rgba(255,255,255,.05)'} }, y:{ ticks:{color:'#cfe0ff'}, grid:{color:'rgba(255,255,255,.05)'} } } }
+    });
+  }
+
+  const ranges = { 'Ótimo':0, 'Regular':0, 'Ruim':0, 'Sem base':0 };
+  sourceRows.forEach(x => {
+    if(x.performance === null) ranges['Sem base'] += 1;
+    else if(x.performance >= 99.51) ranges['Ótimo'] += 1;
+    else if(x.performance >= 97) ranges['Regular'] += 1;
+    else ranges['Ruim'] += 1;
+  });
+  makeDoughnut('chartPerformancePie', Object.keys(ranges), Object.values(ranges));
 }
 
 document.addEventListener('DOMContentLoaded', function(){
