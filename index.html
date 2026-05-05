@@ -3729,6 +3729,13 @@ function renderUsuariosView(){
     ? detailRows.map(r => `<tr><td><strong>${esc(r.cte)}</strong></td><td>${esc(r.cliente || '-')}</td><td>${esc(r.usuario)}</td><td>${esc(r.motivo)}</td><td>${fmtMoney(r.valor)}</td><td>${esc(r.setor)}</td></tr>`).join('')
     : `<tr><td colspan="6" class="center muted">Sem dados para o usuário selecionado</td></tr>`;
 }
+function __performanceColorFinal(p){
+  p = Number(p || 0);
+  if(p >= 99.51) return '#12c97a';   // ótimo
+  if(p >= 97) return '#f4c20d';      // regular
+  return '#ef4444';                  // ruim
+}
+
 function renderPerformanceView(){
   const select = document.getElementById('performanceUserSelect');
   const rowsAll = aggregateProd();
@@ -3736,15 +3743,75 @@ function renderPerformanceView(){
   let selected = __setOptionsPreserveFinal(select, allUsers, 'Todos');
   __applyUsuarioLockFinal(select);
   selected = select ? (select.value || 'TODOS') : 'TODOS';
+
   let rows = rowsAll;
   if(selected !== 'TODOS') rows = rows.filter(x => x.usuario === selected);
+
   const docsLabels = rows.map(x => x.usuario);
   const docsData = rows.map(x => x.totalDocs || 0);
   makeBarChart('chartProdUsuarioMes', docsLabels, docsData, true, 'Documentos');
+
   const typeTotals = DOC_TYPES.map(tipo => rows.reduce((s,x)=>s+Number(x[tipo]||0),0));
   makeBarChart('chartProdTiposMes', ['CTRC','MANIFESTO','NF.FAT','OST'], typeTotals, false, 'Quantidade');
+
   const perfRows = rows.filter(x => x.performance != null);
-  makeBarChart('chartPerformance', perfRows.map(x=>x.usuario), perfRows.map(x=>Number((x.performance||0).toFixed(2))), true, 'Performance');
+  const perfLabels = perfRows.map(x => x.usuario);
+  const perfValues = perfRows.map(x => Number((x.performance || 0).toFixed(2)));
+  const perfColors = perfValues.map(__performanceColorFinal);
+
+  destroyChart('chartPerformance');
+  const ctxPerf = document.getElementById('chartPerformance');
+  if(ctxPerf){
+    state.charts.chartPerformance = new Chart(ctxPerf, {
+      type:'bar',
+      data:{
+        labels: perfLabels.map(l => String(l).length > 18 ? String(l).slice(0,18) + '…' : String(l)),
+        datasets:[{
+          label:'Performance',
+          data: perfValues,
+          backgroundColor: perfColors,
+          borderColor: perfColors,
+          borderWidth: 1
+        }]
+      },
+      options:{
+        indexAxis:'y',
+        responsive:true,
+        maintainAspectRatio:false,
+        layout:{ padding:{ right: 90 } },
+        plugins:{
+          legend:{ labels:{ color:'#fff' } },
+          tooltip:{
+            callbacks:{
+              title:(items)=>{
+                if(!items.length) return '';
+                return String(perfLabels[items[0].dataIndex] || '');
+              },
+              label:(ctx)=> `Performance: ${Number(ctx.raw || 0).toFixed(2)}%`
+            }
+          },
+          datalabels:{
+            color:'#fff',
+            backgroundColor:'rgba(8,16,29,.88)',
+            borderRadius:4,
+            padding:{top:2,right:4,bottom:2,left:4},
+            anchor:'end',
+            align:'right',
+            offset:8,
+            clamp:false,
+            clip:false,
+            formatter:v => `${Number(v || 0).toFixed(2)}%`,
+            display:true
+          }
+        },
+        scales:{
+          x:{ min:90, max:100, ticks:{ color:'#cfe0ff', callback:(v)=> `${v}%` }, grid:{ color:'rgba(255,255,255,.05)' } },
+          y:{ ticks:{ color:'#cfe0ff' }, grid:{ color:'rgba(255,255,255,.05)' } }
+        }
+      }
+    });
+  }
+
   const buckets = { 'ÓTIMO 99,51 – 100':0, 'REGULAR 97 – 99,50':0, 'RUIM 90 – 96,9':0 };
   perfRows.forEach(x => {
     const p = Number(x.performance || 0);
@@ -3752,7 +3819,31 @@ function renderPerformanceView(){
     else if(p >= 97) buckets['REGULAR 97 – 99,50']++;
     else buckets['RUIM 90 – 96,9']++;
   });
-  makePieChart('chartPerformancePie', Object.keys(buckets), Object.values(buckets));
+
+  destroyChart('chartPerformancePie');
+  const ctxPie = document.getElementById('chartPerformancePie');
+  if(ctxPie){
+    state.charts.chartPerformancePie = new Chart(ctxPie, {
+      type:'doughnut',
+      data:{
+        labels:Object.keys(buckets),
+        datasets:[{
+          data:Object.values(buckets),
+          backgroundColor:['#12c97a','#f4c20d','#ef4444'],
+          borderColor:['#12c97a','#f4c20d','#ef4444'],
+          borderWidth:1
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{ labels:{ color:'#fff' }, position:'bottom' },
+          datalabels:{ color:'#fff', formatter:v => v || '', display:true }
+        }
+      }
+    });
+  }
 }
 document.addEventListener('DOMContentLoaded', function(){
   __enableAccessMenusFinal();
