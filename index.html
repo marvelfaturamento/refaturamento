@@ -551,46 +551,6 @@ function normalizeDocType(v){
   if(s.includes('ctrc')) return 'ctrc';
   return '';
 }
-
-function usuarioKeyProd(v){
-  return String(v || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g,'')
-    .toLowerCase()
-    .replace(/\s+/g,'')
-    .trim();
-}
-function usuarioDisplayProd(v){
-  return String(v || '').trim().toLowerCase();
-}
-function sameUsuarioProd(a,b){
-  return usuarioKeyProd(a) === usuarioKeyProd(b);
-}
-function isUsuarioIndividualProd(v){
-  const s = String(v || '').trim();
-  if(!s) return false;
-  const k = usuarioKeyProd(s);
-  if(!k) return false;
-  if(k === 'todos') return false;
-  if(k.includes('total')) return false;
-  if(/[;,/|]/.test(s)) return false;
-  // usuário válido esperado: nome.sobrenome ou multisoft.service etc
-  return /^[a-zA-ZÀ-ÿ0-9_.-]+$/.test(s);
-}
-function ordenarUsuariosPorValorProd(rows, campo){
-  return (rows || []).slice().sort((a,b)=>Number(b[campo]||0)-Number(a[campo]||0));
-}
-function optionsUsuariosProd(rows){
-  const map = new Map();
-  (rows || []).forEach(r => {
-    const u = r.usuario || r.user || r.operador || '';
-    if(!isUsuarioIndividualProd(u)) return;
-    const key = usuarioKeyProd(u);
-    if(!map.has(key)) map.set(key, usuarioDisplayProd(u));
-  });
-  return Array.from(map.values()).sort((a,b)=>a.localeCompare(b,'pt-BR'));
-}
-
 function parseProdWorkbook(workbook){
   const ws = workbook.Sheets[workbook.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
@@ -599,86 +559,56 @@ function parseProdWorkbook(workbook){
   const headerRowIndex = rows.findIndex(r => {
     const row = Array.isArray(r) ? r : [];
     const normalized = row.map(prodNorm);
-    return normalized.some(v => v === 'operador' || v === 'usuario') && normalized.includes('ctrc');
+    const hasUserCol = normalized.some(v => v === 'usuario' || v === 'operador');
+    const hasCtrc = normalized.includes('ctrc');
+    return hasUserCol && hasCtrc;
   });
   if(headerRowIndex < 0) return out;
 
-  const header = rows[headerRowIndex] || [];
-  const normalized = header.map(prodNorm);
-  const userCol = normalized.findIndex(v => v === 'operador' || v === 'usuario');
-
-  const findCol = (names) => normalized.findIndex(v => names.some(n => v === n || v.replace(/\s+/g,'') === n.replace(/\s+/g,'')));
-  const ctrcCol = findCol(['ctrc']);
-  const manifestoCol = findCol(['manifesto']);
-  const ostCol = findCol(['ost']);
-  const nfFatCol = findCol(['nf.fat','nffat','nf fat']);
-
-  if(userCol < 0) return out;
-
-  const docCols = [
-    { c: ctrcCol, tipo:'ctrc' },
-    { c: manifestoCol, tipo:'manifesto' },
-    { c: ostCol, tipo:'ost' },
-    { c: nfFatCol, tipo:'nf.fat' }
-  ].filter(x => x.c >= 0);
+  const rawHeader = rows[headerRowIndex] || [];
+  const normalizedHeader = rawHeader.map(prodNorm);
+  const userCol = normalizedHeader.findIndex(v => v === 'usuario' || v === 'operador');
+  const docCols = [];
+  for(let c = 0; c < rawHeader.length; c++){
+    const tipo = normalizeDocType(rawHeader[c]);
+    if(DOC_TYPES.includes(tipo)) docCols.push({ c, tipo });
+  }
+  if(userCol < 0 || !docCols.length) return out;
 
   for(let i = headerRowIndex + 1; i < rows.length; i++){
     const row = Array.isArray(rows[i]) ? rows[i] : [];
-    const usuarioRaw = String(row[userCol] || '').trim();
-    const usuario = usuarioDisplayProd(usuarioRaw);
-    if(!isUsuarioIndividualProd(usuario)) continue;
+    const usuario = prodNorm(row[userCol]);
+    if(!usuario) continue;
+    if(usuario.includes('total setor')) continue;
 
+    let rowHasAny = false;
     for(const {c, tipo} of docCols){
       const quantidade = parseNumber(row[c]);
       if(!Number.isFinite(quantidade) || quantidade <= 0) continue;
+      rowHasAny = true;
       out.push({ usuario, tipo, quantidade });
     }
+
+    if(!rowHasAny) continue;
   }
 
-  return out;
+  return out.filter(r => TRACKED_USERS.includes(r.usuario));
 }
 function aggregateProd(){
   const map = new Map();
-
-  function ensureUser(usuarioRaw){
-    if(!isUsuarioIndividualProd(usuarioRaw)) return null;
-    const key = usuarioKeyProd(usuarioRaw);
-    if(!key) return null;
-    if(!map.has(key)){
-      map.set(key, {
-        usuario: usuarioDisplayProd(usuarioRaw),
-        usuarioKey: key,
-        'ctrc':0,
-        'manifesto':0,
-        'nf.fat':0,
-        'ost':0,
-        erros:0,
-        erroValor:0,
-        performance:null,
-        totalDocs:0
-      });
-    }
-    return map.get(key);
-  }
-
+  TRACKED_USERS.forEach(u => map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 }));
   (state.prodRows || []).forEach(r => {
-    const usuario = r.usuario || r.operador || '';
-    const tipo = normalizeDocType(r.tipo || r.tipo_doc || '');
-    const quantidade = Number(r.quantidade || 0);
-    if(!DOC_TYPES.includes(tipo) || quantidade <= 0) return;
-    const item = ensureUser(usuario);
-    if(!item) return;
-    item[tipo] = Number(item[tipo] || 0) + quantidade;
+    const u = prodNorm(r.usuario); const t = normalizeDocType(r.tipo);
+    if(!u || !DOC_TYPES.includes(t)) return;
+    if(!map.has(u)) map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 });
+    map.get(u)[t] = (map.get(u)[t] || 0) + Number(r.quantidade || 0);
   });
-
   (state.setores || []).filter(s => s.setor === 'FATURAMENTO').forEach(s => {
-    const usuario = s.usuario || s.operador || '';
-    const item = ensureUser(usuario);
-    if(!item) return;
-    item.erros += 1;
-    item.erroValor += Number(s.debit || s.debito || 0);
+    const u = prodNorm(s.usuario || '');
+    if(!u) return;
+    if(!map.has(u)) map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 });
+    map.get(u).erros += 1;
   });
-
   return Array.from(map.values()).map(x => {
     x.totalDocs = Number(x['ctrc']||0) + Number(x['manifesto']||0) + Number(x['nf.fat']||0) + Number(x['ost']||0);
     const base = Number(x['ctrc']||0) + Number(x['ost']||0);
@@ -792,11 +722,11 @@ function buildRefRowsForSync(mes, ano){
 function buildProdRowsForSync(mes, ano){
   const prodMap = new Map();
   (state.prodRows || []).forEach(r => {
-    const operador = usuarioDisplayProd(r.usuario || r.operador || '');
+    const operador = String(r.usuario || r.operador || '').trim().toUpperCase();
     const tipo = normalizeDocType(r.tipo || r.tipo_doc || '');
     const qtd = parseNumber(r.quantidade || 0);
-    if(!isUsuarioIndividualProd(operador) || !tipo || qtd <= 0) return;
-    const key = `${mes}|${ano}|${usuarioKeyProd(operador)}`;
+    if(!operador || !tipo || qtd <= 0) return;
+    const key = `${mes}|${ano}|${operador}`;
     if(!prodMap.has(key)){
       prodMap.set(key, { mes, ano, operador, ctrc:0, manifesto:0, ost:0, nf_fat:0, total_docs:0, docs_performance:0 });
     }
@@ -931,8 +861,7 @@ async function loadMonthFromSupabase(monthKey){
   }));
   state.prodRows = [];
   allProd.forEach(r => {
-    const usuario = usuarioDisplayProd(r.operador || '');
-    if(!isUsuarioIndividualProd(usuario)) return;
+    const usuario = prodNorm(r.operador || '');
     const pushRow = (tipo, quantidade) => {
       const q = parseNumber(quantidade || 0);
       if(q > 0) state.prodRows.push({ usuario, tipo, quantidade: q });
@@ -2386,71 +2315,55 @@ function renderAnnualView(){
 
 
 function renderPerformanceView(){
+  const rows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
   const select = document.getElementById('performanceUserSelect');
-  const rowsAll = aggregateProd().filter(x => isUsuarioIndividualProd(x.usuario) && (x.totalDocs > 0 || x.erros > 0));
-  const allUsers = optionsUsuariosProd(rowsAll);
+  if(select){
+    const cur = select.value || 'TODOS';
+    select.innerHTML = '<option value="TODOS">Todos</option>' + rows.map(x => `<option value="${esc(x.usuario)}">${esc(x.usuario)}</option>`).join('');
+    select.value = rows.some(x => x.usuario === cur) || cur === 'TODOS' ? cur : 'TODOS';
+  }
+  const selectedUser = select?.value || 'TODOS';
+  const selected = selectedUser === 'TODOS' ? null : (rows.find(x => x.usuario === selectedUser) || null);
+  const sourceRows = selected ? [selected] : rows;
 
-  let selected = __setOptionsPreserveFinal(select, allUsers, 'Todos');
-  __applyUsuarioLockFinal(select);
-  selected = select ? (select.value || 'TODOS') : 'TODOS';
-
-  let rows = rowsAll;
-  if(selected !== 'TODOS') rows = rows.filter(x => sameUsuarioProd(x.usuario, selected));
-
-  const docsRows = ordenarUsuariosPorValorProd(rows, 'totalDocs');
-  makeBarChart('chartProdUsuarioMes', docsRows.map(x => x.usuario), docsRows.map(x => Number(x.totalDocs || 0)), true, 'Documentos');
-
-  const typeTotals = DOC_TYPES.map(tipo => rows.reduce((s,x)=>s+Number(x[tipo]||0),0));
-  makeBarChart('chartProdTiposMes', ['CTRC','MANIFESTO','NF.FAT','OST'], typeTotals, false, 'Quantidade');
-
-  const perfRows = ordenarUsuariosPorValorProd(rows.filter(x => x.performance != null), 'performance');
-  const perfLabels = perfRows.map(x => x.usuario);
-  const perfValues = perfRows.map(x => Number((x.performance || 0).toFixed(2)));
-  const perfColors = perfValues.map(__performanceColorFinal);
+  makeBarChart('chartProdUsuarioMes', sourceRows.map(x => x.usuario), sourceRows.map(x => x.totalDocs), true, 'Quantidade');
+  const docs = ['ctrc','manifesto','nf.fat','ost'];
+  if(selected){
+    makeBarChart('chartProdTiposMes', docs.map(d => d.toUpperCase()), docs.map(d => Number(selected[d]||0)), false, 'Quantidade');
+  } else {
+    const sums = Object.fromEntries(docs.map(d => [d,0]));
+    rows.forEach(r => docs.forEach(d => sums[d] += Number(r[d]||0)));
+    makeBarChart('chartProdTiposMes', docs.map(d => d.toUpperCase()), docs.map(d => sums[d]), false, 'Quantidade');
+  }
 
   destroyChart('chartPerformance');
-  const ctxPerf = document.getElementById('chartPerformance');
-  if(ctxPerf){
-    state.charts.chartPerformance = new Chart(ctxPerf, {
+  const ctx = document.getElementById('chartPerformance');
+  if(ctx){
+    state.charts.chartPerformance = new Chart(ctx, {
       type:'bar',
       data:{
-        labels: perfLabels.map(l => String(l).length > 18 ? String(l).slice(0,18) + '…' : String(l)),
+        labels: sourceRows.map(x => x.usuario),
         datasets:[{
           label:'Performance',
-          data: perfValues,
-          backgroundColor: perfColors,
-          borderColor: perfColors,
-          borderWidth: 1
+          data: sourceRows.map(x => Number(x.performance || 0)),
+          backgroundColor: sourceRows.map(x => {
+            const p = Number(x.performance || 0);
+            if(p >= 99.51) return '#12c97a';
+            if(p >= 97) return '#f4c20d';
+            return '#ef4444';
+          })
         }]
       },
       options:{
-        indexAxis:'y',
-        responsive:true,
-        maintainAspectRatio:false,
+        indexAxis:'y', responsive:true, maintainAspectRatio:false,
         layout:{ padding:{ right: 90 } },
         plugins:{
           legend:{ labels:{ color:'#fff' } },
-          tooltip:{
-            callbacks:{
-              title:(items)=>{
-                if(!items.length) return '';
-                return String(perfLabels[items[0].dataIndex] || '');
-              },
-              label:(ctx)=> `Performance: ${Number(ctx.raw || 0).toFixed(2)}%`
-            }
-          },
+          tooltip:{ callbacks:{ label:(ctx)=> `Performance: ${Number(ctx.raw).toFixed(2)}%` } },
           datalabels:{
-            color:'#fff',
-            backgroundColor:'rgba(8,16,29,.88)',
-            borderRadius:4,
-            padding:{top:2,right:4,bottom:2,left:4},
-            anchor:'end',
-            align:'right',
-            offset:8,
-            clamp:false,
-            clip:false,
-            formatter:v => `${Number(v || 0).toFixed(2)}%`,
-            display:true
+            color:'#ffffff', backgroundColor:'rgba(8,16,29,.88)', borderRadius:4,
+            padding:{top:2,right:4,bottom:2,left:4}, anchor:'end', align:'right', offset:8,
+            clamp:false, clip:false, formatter:v => `${Number(v).toFixed(2)}%`, display:true
           }
         },
         scales:{
@@ -2461,35 +2374,25 @@ function renderPerformanceView(){
     });
   }
 
-  const buckets = { 'ÓTIMO 99,51 – 100':0, 'REGULAR 97 – 99,50':0, 'RUIM 90 – 96,9':0 };
-  perfRows.forEach(x => {
+  const counts = { otimo:0, regular:0, ruim:0 };
+  sourceRows.forEach(x => {
     const p = Number(x.performance || 0);
-    if(p >= 99.51) buckets['ÓTIMO 99,51 – 100']++;
-    else if(p >= 97) buckets['REGULAR 97 – 99,50']++;
-    else buckets['RUIM 90 – 96,9']++;
+    if(p >= 99.51) counts.otimo += 1;
+    else if(p >= 97) counts.regular += 1;
+    else counts.ruim += 1;
   });
-
   destroyChart('chartPerformancePie');
-  const ctxPie = document.getElementById('chartPerformancePie');
-  if(ctxPie){
-    state.charts.chartPerformancePie = new Chart(ctxPie, {
+  const ctx2 = document.getElementById('chartPerformancePie');
+  if(ctx2){
+    state.charts.chartPerformancePie = new Chart(ctx2, {
       type:'doughnut',
       data:{
-        labels:Object.keys(buckets),
-        datasets:[{
-          data:Object.values(buckets),
-          backgroundColor:['#12c97a','#f4c20d','#ef4444'],
-          borderColor:['#12c97a','#f4c20d','#ef4444'],
-          borderWidth:1
-        }]
+        labels:['ÓTIMO 99,51 – 100','REGULAR 97 – 99,50','RUIM 90 – 96,9'],
+        datasets:[{ data:[counts.otimo, counts.regular, counts.ruim], backgroundColor:['#12c97a','#f4c20d','#ef4444'] }]
       },
       options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{
-          legend:{ labels:{ color:'#fff' }, position:'bottom' },
-          datalabels:{ color:'#fff', formatter:v => v || '', display:true }
-        }
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ labels:{ color:'#fff' } }, datalabels:{ color:'#fff', formatter:v => v || '', display:true } }
       }
     });
   }
@@ -2534,122 +2437,65 @@ function renderPerformanceView(){
 
 
 function renderPerformanceView(){
+  const rows = aggregateProd();
   const select = document.getElementById('performanceUserSelect');
-  const rowsAll = aggregateProd().filter(x => isUsuarioIndividualProd(x.usuario) && (x.totalDocs > 0 || x.erros > 0));
-  const allUsers = optionsUsuariosProd(rowsAll);
+  if(select){
+    const cur = select.value;
+    select.innerHTML = rows.filter(x => x.totalDocs > 0 || x.erros > 0).map(x => `<option value="${esc(x.usuario)}">${esc(x.usuario)}</option>`).join('');
+    if(rows.some(x => x.usuario === cur)) select.value = cur;
+  }
+  const selectedUser = select?.value || (rows.find(x => x.totalDocs > 0 || x.erros > 0)?.usuario || rows[0]?.usuario || '');
+  const selected = rows.find(x => x.usuario === selectedUser) || null;
 
-  let selected = __setOptionsPreserveFinal(select, allUsers, 'Todos');
-  __applyUsuarioLockFinal(select);
-  selected = select ? (select.value || 'TODOS') : 'TODOS';
+  makeBarChart('chartProdUsuarioMes', selected ? [selected.usuario] : ['Sem dados'], [selected ? selected.totalDocs : 0], true, 'Quantidade');
+  const docs = ['ctrc','manifesto','nf.fat','ost'];
+  makeBarChart('chartProdTiposMes', docs.map(x => x.toUpperCase()), selected ? docs.map(t => Number(selected[t]||0)) : [0,0,0,0], false, 'Quantidade');
 
-  let rows = rowsAll;
-  if(selected !== 'TODOS') rows = rows.filter(x => sameUsuarioProd(x.usuario, selected));
-
-  const docsRows = ordenarUsuariosPorValorProd(rows, 'totalDocs');
-  makeBarChart('chartProdUsuarioMes', docsRows.map(x => x.usuario), docsRows.map(x => Number(x.totalDocs || 0)), true, 'Documentos');
-
-  const typeTotals = DOC_TYPES.map(tipo => rows.reduce((s,x)=>s+Number(x[tipo]||0),0));
-  makeBarChart('chartProdTiposMes', ['CTRC','MANIFESTO','NF.FAT','OST'], typeTotals, false, 'Quantidade');
-
-  const perfRows = ordenarUsuariosPorValorProd(rows.filter(x => x.performance != null), 'performance');
-  const perfLabels = perfRows.map(x => x.usuario);
-  const perfValues = perfRows.map(x => Number((x.performance || 0).toFixed(2)));
-  const perfColors = perfValues.map(__performanceColorFinal);
-
+  const perfRows = rows.filter(x => x.performance !== null && x.totalDocs > 0).sort((a,b) => b.performance - a.performance);
   destroyChart('chartPerformance');
   const ctxPerf = document.getElementById('chartPerformance');
   if(ctxPerf){
     state.charts.chartPerformance = new Chart(ctxPerf, {
       type:'bar',
       data:{
-        labels: perfLabels.map(l => String(l).length > 18 ? String(l).slice(0,18) + '…' : String(l)),
+        labels: perfRows.map(x => x.usuario),
         datasets:[{
           label:'Performance',
-          data: perfValues,
-          backgroundColor: perfColors,
-          borderColor: perfColors,
-          borderWidth: 1
-        }]
-      },
-      options:{
-        indexAxis:'y',
-        responsive:true,
-        maintainAspectRatio:false,
-        layout:{ padding:{ right: 90 } },
-        plugins:{
-          legend:{ labels:{ color:'#fff' } },
-          tooltip:{
-            callbacks:{
-              title:(items)=>{
-                if(!items.length) return '';
-                return String(perfLabels[items[0].dataIndex] || '');
-              },
-              label:(ctx)=> `Performance: ${Number(ctx.raw || 0).toFixed(2)}%`
-            }
-          },
-          datalabels:{
-            color:'#fff',
-            backgroundColor:'rgba(8,16,29,.88)',
-            borderRadius:4,
-            padding:{top:2,right:4,bottom:2,left:4},
-            anchor:'end',
-            align:'right',
-            offset:8,
-            clamp:false,
-            clip:false,
-            formatter:v => `${Number(v || 0).toFixed(2)}%`,
-            display:true
-          }
-        },
-        scales:{
-          x:{ min:90, max:100, ticks:{ color:'#cfe0ff', callback:(v)=> `${v}%` }, grid:{ color:'rgba(255,255,255,.05)' } },
-          y:{ ticks:{ color:'#cfe0ff' }, grid:{ color:'rgba(255,255,255,.05)' } }
-        }
-      }
-    });
-  }
-
-  const buckets = { 'ÓTIMO 99,51 – 100':0, 'REGULAR 97 – 99,50':0, 'RUIM 90 – 96,9':0 };
-  perfRows.forEach(x => {
-    const p = Number(x.performance || 0);
-    if(p >= 99.51) buckets['ÓTIMO 99,51 – 100']++;
-    else if(p >= 97) buckets['REGULAR 97 – 99,50']++;
-    else buckets['RUIM 90 – 96,9']++;
-  });
-
-  destroyChart('chartPerformancePie');
-  const ctxPie = document.getElementById('chartPerformancePie');
-  if(ctxPie){
-    state.charts.chartPerformancePie = new Chart(ctxPie, {
-      type:'doughnut',
-      data:{
-        labels:Object.keys(buckets),
-        datasets:[{
-          data:Object.values(buckets),
-          backgroundColor:['#12c97a','#f4c20d','#ef4444'],
-          borderColor:['#12c97a','#f4c20d','#ef4444'],
+          data: perfRows.map(x => x.performance),
+          backgroundColor: perfRows.map(x => x.performance >= 99 ? 'rgba(34,197,94,0.85)' : (x.performance >= 98 ? 'rgba(245,158,11,0.85)' : 'rgba(239,68,68,0.85)')),
           borderWidth:1
         }]
       },
       options:{
-        responsive:true,
-        maintainAspectRatio:false,
+        indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{ padding:{ left:6, right:60 } },
         plugins:{
-          legend:{ labels:{ color:'#fff' }, position:'bottom' },
-          datalabels:{ color:'#fff', formatter:v => v || '', display:true }
+          legend:{ labels:{ color:'#fff' } },
+          tooltip:{ callbacks:{ label: ctx => `${Number(ctx.raw).toFixed(2)}%` } },
+          datalabels:{ color:'#fff', anchor:'end', align:'right', clamp:false, clip:false, offset:8, formatter:v => `${Number(v).toFixed(2)}%`, backgroundColor:'rgba(8,16,29,0.78)', borderRadius:4, padding:{left:6,right:6,top:2,bottom:2} }
+        },
+        scales:{
+          x:{ ticks:{ color:'#cfe0ff', callback:v => `${v}%` }, grid:{ color:'rgba(255,255,255,.05)' } },
+          y:{ ticks:{ color:'#cfe0ff', callback:(v,idx) => { const label = perfRows[idx]?.usuario || ''; return label.length > 18 ? label.slice(0,18)+'…' : label; } }, grid:{ color:'rgba(255,255,255,.05)' } }
         }
       }
     });
   }
-}
 
-
-function limparProdRowsContaminadas(){
-  state.prodRows = (state.prodRows || []).filter(r => isUsuarioIndividualProd(r.usuario || r.operador || ''));
+  destroyChart('chartPerformancePie');
+  const ctxPie = document.getElementById('chartPerformancePie');
+  if(ctxPie){
+    const otimo = perfRows.filter(x => x.performance >= 99).length;
+    const regular = perfRows.filter(x => x.performance >= 98 && x.performance < 99).length;
+    const baixo = perfRows.filter(x => x.performance < 98).length;
+    state.charts.chartPerformancePie = new Chart(ctxPie, {
+      type:'pie',
+      data:{ labels:['Ótimo','Regular','Baixo'], datasets:[{ data:[otimo, regular, baixo], backgroundColor:['rgba(34,197,94,0.85)','rgba(245,158,11,0.85)','rgba(239,68,68,0.85)'] }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'#fff' } }, datalabels:{ color:'#fff', formatter:v => v || '' } } }
+    });
+  }
 }
 
 function renderAll(){
-  limparProdRowsContaminadas();
   renderTopInfo();
   renderKPIs();
   renderSummaryBoxes();
@@ -2936,46 +2782,19 @@ function usuariosErroAggregate(){
 
 function aggregateProd(){
   const map = new Map();
-
-  function ensureUser(usuarioRaw){
-    if(!isUsuarioIndividualProd(usuarioRaw)) return null;
-    const key = usuarioKeyProd(usuarioRaw);
-    if(!key) return null;
-    if(!map.has(key)){
-      map.set(key, {
-        usuario: usuarioDisplayProd(usuarioRaw),
-        usuarioKey: key,
-        'ctrc':0,
-        'manifesto':0,
-        'nf.fat':0,
-        'ost':0,
-        erros:0,
-        erroValor:0,
-        performance:null,
-        totalDocs:0
-      });
-    }
-    return map.get(key);
-  }
-
+  TRACKED_USERS.forEach(u => map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, erroValor:0, performance:null, totalDocs:0 }));
   (state.prodRows || []).forEach(r => {
-    const usuario = r.usuario || r.operador || '';
-    const tipo = normalizeDocType(r.tipo || r.tipo_doc || '');
-    const quantidade = Number(r.quantidade || 0);
-    if(!DOC_TYPES.includes(tipo) || quantidade <= 0) return;
-    const item = ensureUser(usuario);
-    if(!item) return;
-    item[tipo] = Number(item[tipo] || 0) + quantidade;
+    const u = prodNorm(r.usuario); const t = normalizeDocType(r.tipo);
+    if(!u || !DOC_TYPES.includes(t)) return;
+    if(!map.has(u)) map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, erroValor:0, performance:null, totalDocs:0 });
+    map.get(u)[t] = (map.get(u)[t] || 0) + Number(r.quantidade || 0);
   });
-
-  (state.setores || []).filter(s => s.setor === 'FATURAMENTO').forEach(s => {
-    const usuario = s.usuario || s.operador || '';
-    const item = ensureUser(usuario);
-    if(!item) return;
-    item.erros += 1;
-    item.erroValor += Number(s.debit || s.debito || 0);
+  const errMap = getErroPorOperadorMap();
+  errMap.forEach((obj,u)=>{
+    if(!map.has(u)) map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, erroValor:0, performance:null, totalDocs:0 });
+    map.get(u).erros = Number(obj.qty||0);
+    map.get(u).erroValor = Number(obj.value||0);
   });
-
   return Array.from(map.values()).map(x => {
     x.totalDocs = Number(x['ctrc']||0) + Number(x['manifesto']||0) + Number(x['nf.fat']||0) + Number(x['ost']||0);
     const base = Number(x['ctrc']||0) + Number(x['ost']||0);
@@ -2995,111 +2814,82 @@ function renderUsuariosView(){
 }
 
 function renderPerformanceView(){
+  const rows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
   const select = document.getElementById('performanceUserSelect');
-  const rowsAll = aggregateProd().filter(x => isUsuarioIndividualProd(x.usuario) && (x.totalDocs > 0 || x.erros > 0));
-  const allUsers = optionsUsuariosProd(rowsAll);
+  let selectedUser = 'TODOS';
+  if(select){
+    const cur = select.value || 'TODOS';
+    select.innerHTML = '<option value="TODOS">Todos</option>' + rows.map(x => `<option value="${esc(x.usuario)}">${esc(x.usuario)}</option>`).join('');
+    if(cur !== 'TODOS' && rows.some(x => x.usuario === cur)) select.value = cur;
+    else select.value = 'TODOS';
+    selectedUser = select.value;
+  }
 
-  let selected = __setOptionsPreserveFinal(select, allUsers, 'Todos');
-  __applyUsuarioLockFinal(select);
-  selected = select ? (select.value || 'TODOS') : 'TODOS';
+  const sourceRows = selectedUser === 'TODOS'
+    ? rows
+    : rows.filter(x => x.usuario === selectedUser);
 
-  let rows = rowsAll;
-  if(selected !== 'TODOS') rows = rows.filter(x => sameUsuarioProd(x.usuario, selected));
+  makeBarChart('chartProdUsuarioMes', sourceRows.map(x => x.usuario), sourceRows.map(x => x.totalDocs), true, 'Quantidade');
 
-  const docsRows = ordenarUsuariosPorValorProd(rows, 'totalDocs');
-  makeBarChart('chartProdUsuarioMes', docsRows.map(x => x.usuario), docsRows.map(x => Number(x.totalDocs || 0)), true, 'Documentos');
+  const docs = ['ctrc','manifesto','nf.fat','ost'];
+  if(sourceRows.length === 1){
+    const selected = sourceRows[0];
+    makeBarChart('chartProdTiposMes', docs.map(d => d.toUpperCase()), docs.map(d => Number(selected[d]||0)), false, 'Quantidade');
+  } else {
+    const sums = Object.fromEntries(docs.map(d => [d,0]));
+    sourceRows.forEach(r => docs.forEach(d => sums[d] += Number(r[d]||0)));
+    makeBarChart('chartProdTiposMes', docs.map(d => d.toUpperCase()), docs.map(d => sums[d]), false, 'Quantidade');
+  }
 
-  const typeTotals = DOC_TYPES.map(tipo => rows.reduce((s,x)=>s+Number(x[tipo]||0),0));
-  makeBarChart('chartProdTiposMes', ['CTRC','MANIFESTO','NF.FAT','OST'], typeTotals, false, 'Quantidade');
-
-  const perfRows = ordenarUsuariosPorValorProd(rows.filter(x => x.performance != null), 'performance');
-  const perfLabels = perfRows.map(x => x.usuario);
-  const perfValues = perfRows.map(x => Number((x.performance || 0).toFixed(2)));
-  const perfColors = perfValues.map(__performanceColorFinal);
-
+  const perfRows = sourceRows.filter(x => x.performance !== null && (x.totalDocs > 0 || x.erros > 0)).sort((a,b) => b.performance - a.performance);
   destroyChart('chartPerformance');
   const ctxPerf = document.getElementById('chartPerformance');
   if(ctxPerf){
     state.charts.chartPerformance = new Chart(ctxPerf, {
       type:'bar',
       data:{
-        labels: perfLabels.map(l => String(l).length > 18 ? String(l).slice(0,18) + '…' : String(l)),
+        labels: perfRows.map(x => x.usuario),
         datasets:[{
           label:'Performance',
-          data: perfValues,
-          backgroundColor: perfColors,
-          borderColor: perfColors,
-          borderWidth: 1
+          data: perfRows.map(x => x.performance),
+          backgroundColor: perfRows.map(x => x.performance >= 99.51 ? '#12c97a' : (x.performance >= 97 ? '#f4c20d' : '#ef4444')),
+          borderWidth:1
         }]
       },
       options:{
-        indexAxis:'y',
-        responsive:true,
-        maintainAspectRatio:false,
-        layout:{ padding:{ right: 90 } },
+        indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{ padding:{ left:6, right:60 } },
         plugins:{
           legend:{ labels:{ color:'#fff' } },
-          tooltip:{
-            callbacks:{
-              title:(items)=>{
-                if(!items.length) return '';
-                return String(perfLabels[items[0].dataIndex] || '');
-              },
-              label:(ctx)=> `Performance: ${Number(ctx.raw || 0).toFixed(2)}%`
-            }
-          },
-          datalabels:{
-            color:'#fff',
-            backgroundColor:'rgba(8,16,29,.88)',
-            borderRadius:4,
-            padding:{top:2,right:4,bottom:2,left:4},
-            anchor:'end',
-            align:'right',
-            offset:8,
-            clamp:false,
-            clip:false,
-            formatter:v => `${Number(v || 0).toFixed(2)}%`,
-            display:true
-          }
+          tooltip:{ callbacks:{ label: ctx => `${Number(ctx.raw).toFixed(2)}%` } },
+          datalabels:{ color:'#fff', anchor:'end', align:'right', clamp:false, clip:false, offset:8, formatter:v => `${Number(v).toFixed(2)}%`, backgroundColor:'rgba(8,16,29,0.78)', borderRadius:4, padding:{left:6,right:6,top:2,bottom:2} }
         },
         scales:{
-          x:{ min:90, max:100, ticks:{ color:'#cfe0ff', callback:(v)=> `${v}%` }, grid:{ color:'rgba(255,255,255,.05)' } },
-          y:{ ticks:{ color:'#cfe0ff' }, grid:{ color:'rgba(255,255,255,.05)' } }
+          x:{ min:90, max:100, ticks:{ color:'#cfe0ff', callback:v => `${v}%` }, grid:{ color:'rgba(255,255,255,.05)' } },
+          y:{ ticks:{ color:'#cfe0ff', callback:(v,idx) => { const label = perfRows[idx]?.usuario || ''; return label.length > 18 ? label.slice(0,18)+'…' : label; } }, grid:{ color:'rgba(255,255,255,.05)' } }
         }
       }
     });
   }
 
-  const buckets = { 'ÓTIMO 99,51 – 100':0, 'REGULAR 97 – 99,50':0, 'RUIM 90 – 96,9':0 };
-  perfRows.forEach(x => {
-    const p = Number(x.performance || 0);
-    if(p >= 99.51) buckets['ÓTIMO 99,51 – 100']++;
-    else if(p >= 97) buckets['REGULAR 97 – 99,50']++;
-    else buckets['RUIM 90 – 96,9']++;
-  });
-
   destroyChart('chartPerformancePie');
   const ctxPie = document.getElementById('chartPerformancePie');
   if(ctxPie){
+    let data, labels;
+    if(perfRows.length === 1){
+      const p = perfRows[0].performance;
+      labels = ['ÓTIMO 99,51 – 100','REGULAR 97 – 99,50','RUIM 90 – 96,9'];
+      data = [p >= 99.51 ? 1 : 0, p >= 97 && p < 99.51 ? 1 : 0, p < 97 ? 1 : 0];
+    } else {
+      const otimo = perfRows.filter(x => x.performance >= 99.51).length;
+      const regular = perfRows.filter(x => x.performance >= 97 && x.performance < 99.51).length;
+      const ruim = perfRows.filter(x => x.performance < 97).length;
+      labels = ['ÓTIMO 99,51 – 100','REGULAR 97 – 99,50','RUIM 90 – 96,9'];
+      data = [otimo, regular, ruim];
+    }
     state.charts.chartPerformancePie = new Chart(ctxPie, {
       type:'doughnut',
-      data:{
-        labels:Object.keys(buckets),
-        datasets:[{
-          data:Object.values(buckets),
-          backgroundColor:['#12c97a','#f4c20d','#ef4444'],
-          borderColor:['#12c97a','#f4c20d','#ef4444'],
-          borderWidth:1
-        }]
-      },
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{
-          legend:{ labels:{ color:'#fff' }, position:'bottom' },
-          datalabels:{ color:'#fff', formatter:v => v || '', display:true }
-        }
-      }
+      data:{ labels, datasets:[{ data, backgroundColor:['#12c97a','#f4c20d','#ef4444'] }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'#fff' } }, datalabels:{ color:'#fff', formatter:v => v || '', display:true } } }
     });
   }
 }
@@ -3674,45 +3464,21 @@ function __ensureUsuarioTopFilterFinal(){
 function __setOptionsPreserveFinal(select, values, defaultLabel){
   if(!select) return 'TODOS';
   const current = select.value || 'TODOS';
-  const cleaned = [];
-  const seen = new Set();
-
-  (values || []).forEach(v => {
-    if(!isUsuarioIndividualProd(v)) return;
-    const key = usuarioKeyProd(v);
-    if(seen.has(key)) return;
-    seen.add(key);
-    cleaned.push(usuarioDisplayProd(v));
-  });
-
-  cleaned.sort((a,b)=>a.localeCompare(b,'pt-BR'));
-
-  const opts = ['<option value="TODOS">'+(defaultLabel || 'Todos')+'</option>']
-    .concat(cleaned.map(v => `<option value="${esc(v)}">${esc(v)}</option>`));
+  const opts = ['<option value="TODOS">'+(defaultLabel || 'Todos')+'</option>'].concat(values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`));
   select.innerHTML = opts.join('');
-
-  if(current !== 'TODOS'){
-    const found = cleaned.find(v => sameUsuarioProd(v, current));
-    select.value = found || 'TODOS';
-  }else{
-    select.value = 'TODOS';
-  }
-
+  if(current !== 'TODOS' && values.includes(current)) select.value = current;
+  else select.value = 'TODOS';
   return select.value;
 }
 function __applyUsuarioLockFinal(select){
   if(!select) return;
   if(__isRestritoUsuarioFinal()){
     const allowed = __usuarioPermitidoFinal();
-    if(allowed && isUsuarioIndividualProd(allowed)){
-      const found = Array.from(select.options || []).find(o => sameUsuarioProd(o.value, allowed) || sameUsuarioProd(o.textContent, allowed));
-      if(found){
-        select.value = found.value;
-      }else{
-        const val = usuarioDisplayProd(allowed);
-        select.insertAdjacentHTML('beforeend', `<option value="${esc(val)}">${esc(val)}</option>`);
-        select.value = val;
+    if(allowed){
+      if(!Array.from(select.options).some(o => o.value === allowed)){
+        select.insertAdjacentHTML('beforeend', `<option value="${esc(allowed)}">${esc(allowed)}</option>`);
       }
+      select.value = allowed;
     }
     select.disabled = true;
   }else{
@@ -3965,80 +3731,20 @@ function renderUsuariosView(){
 }
 function renderPerformanceView(){
   const select = document.getElementById('performanceUserSelect');
-  const rowsAll = aggregateProd().filter(x => isUsuarioIndividualProd(x.usuario) && (x.totalDocs > 0 || x.erros > 0));
-  const allUsers = optionsUsuariosProd(rowsAll);
-
+  const rowsAll = aggregateProd();
+  const allUsers = rowsAll.map(x => x.usuario).filter(Boolean);
   let selected = __setOptionsPreserveFinal(select, allUsers, 'Todos');
   __applyUsuarioLockFinal(select);
   selected = select ? (select.value || 'TODOS') : 'TODOS';
-
   let rows = rowsAll;
-  if(selected !== 'TODOS') rows = rows.filter(x => sameUsuarioProd(x.usuario, selected));
-
-  const docsRows = ordenarUsuariosPorValorProd(rows, 'totalDocs');
-  makeBarChart('chartProdUsuarioMes', docsRows.map(x => x.usuario), docsRows.map(x => Number(x.totalDocs || 0)), true, 'Documentos');
-
+  if(selected !== 'TODOS') rows = rows.filter(x => x.usuario === selected);
+  const docsLabels = rows.map(x => x.usuario);
+  const docsData = rows.map(x => x.totalDocs || 0);
+  makeBarChart('chartProdUsuarioMes', docsLabels, docsData, true, 'Documentos');
   const typeTotals = DOC_TYPES.map(tipo => rows.reduce((s,x)=>s+Number(x[tipo]||0),0));
   makeBarChart('chartProdTiposMes', ['CTRC','MANIFESTO','NF.FAT','OST'], typeTotals, false, 'Quantidade');
-
-  const perfRows = ordenarUsuariosPorValorProd(rows.filter(x => x.performance != null), 'performance');
-  const perfLabels = perfRows.map(x => x.usuario);
-  const perfValues = perfRows.map(x => Number((x.performance || 0).toFixed(2)));
-  const perfColors = perfValues.map(__performanceColorFinal);
-
-  destroyChart('chartPerformance');
-  const ctxPerf = document.getElementById('chartPerformance');
-  if(ctxPerf){
-    state.charts.chartPerformance = new Chart(ctxPerf, {
-      type:'bar',
-      data:{
-        labels: perfLabels.map(l => String(l).length > 18 ? String(l).slice(0,18) + '…' : String(l)),
-        datasets:[{
-          label:'Performance',
-          data: perfValues,
-          backgroundColor: perfColors,
-          borderColor: perfColors,
-          borderWidth: 1
-        }]
-      },
-      options:{
-        indexAxis:'y',
-        responsive:true,
-        maintainAspectRatio:false,
-        layout:{ padding:{ right: 90 } },
-        plugins:{
-          legend:{ labels:{ color:'#fff' } },
-          tooltip:{
-            callbacks:{
-              title:(items)=>{
-                if(!items.length) return '';
-                return String(perfLabels[items[0].dataIndex] || '');
-              },
-              label:(ctx)=> `Performance: ${Number(ctx.raw || 0).toFixed(2)}%`
-            }
-          },
-          datalabels:{
-            color:'#fff',
-            backgroundColor:'rgba(8,16,29,.88)',
-            borderRadius:4,
-            padding:{top:2,right:4,bottom:2,left:4},
-            anchor:'end',
-            align:'right',
-            offset:8,
-            clamp:false,
-            clip:false,
-            formatter:v => `${Number(v || 0).toFixed(2)}%`,
-            display:true
-          }
-        },
-        scales:{
-          x:{ min:90, max:100, ticks:{ color:'#cfe0ff', callback:(v)=> `${v}%` }, grid:{ color:'rgba(255,255,255,.05)' } },
-          y:{ ticks:{ color:'#cfe0ff' }, grid:{ color:'rgba(255,255,255,.05)' } }
-        }
-      }
-    });
-  }
-
+  const perfRows = rows.filter(x => x.performance != null);
+  makeBarChart('chartPerformance', perfRows.map(x=>x.usuario), perfRows.map(x=>Number((x.performance||0).toFixed(2))), true, 'Performance');
   const buckets = { 'ÓTIMO 99,51 – 100':0, 'REGULAR 97 – 99,50':0, 'RUIM 90 – 96,9':0 };
   perfRows.forEach(x => {
     const p = Number(x.performance || 0);
@@ -4046,31 +3752,7 @@ function renderPerformanceView(){
     else if(p >= 97) buckets['REGULAR 97 – 99,50']++;
     else buckets['RUIM 90 – 96,9']++;
   });
-
-  destroyChart('chartPerformancePie');
-  const ctxPie = document.getElementById('chartPerformancePie');
-  if(ctxPie){
-    state.charts.chartPerformancePie = new Chart(ctxPie, {
-      type:'doughnut',
-      data:{
-        labels:Object.keys(buckets),
-        datasets:[{
-          data:Object.values(buckets),
-          backgroundColor:['#12c97a','#f4c20d','#ef4444'],
-          borderColor:['#12c97a','#f4c20d','#ef4444'],
-          borderWidth:1
-        }]
-      },
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{
-          legend:{ labels:{ color:'#fff' }, position:'bottom' },
-          datalabels:{ color:'#fff', formatter:v => v || '', display:true }
-        }
-      }
-    });
-  }
+  makePieChart('chartPerformancePie', Object.keys(buckets), Object.values(buckets));
 }
 document.addEventListener('DOMContentLoaded', function(){
   __enableAccessMenusFinal();
@@ -4081,5 +3763,211 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 </script>
+
+<script>
+/* ===== PATCH FINAL PRODUTIVIDADE - NÃO ALTERA MESES/SUPABASE ===== */
+(function(){
+  function keyUser(v){
+    return String(v || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'')
+      .toLowerCase()
+      .replace(/\s+/g,'')
+      .trim();
+  }
+  function displayUser(v){ return String(v || '').trim().toLowerCase(); }
+  function sameUser(a,b){ return keyUser(a) === keyUser(b); }
+  function validUser(v){
+    const s = String(v || '').trim();
+    if(!s) return false;
+    const k = keyUser(s);
+    if(!k || k === 'todos') return false;
+    if(k.includes('total')) return false;
+    if(/[;,/|]/.test(s)) return false;
+    return /^[a-zA-ZÀ-ÿ0-9_.-]+$/.test(s);
+  }
+  function sortDesc(rows, field){ return (rows || []).slice().sort((a,b)=>Number(b[field]||0)-Number(a[field]||0)); }
+  function uniqueUsers(rows){
+    const map = new Map();
+    (rows || []).forEach(r => {
+      const u = displayUser(r.usuario || r.operador || '');
+      if(!validUser(u)) return;
+      const k = keyUser(u);
+      if(!map.has(k)) map.set(k, u);
+    });
+    return Array.from(map.values()).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  }
+  function colorPerformance(p){
+    p = Number(p || 0);
+    if(p >= 99.51) return '#12c97a';
+    if(p >= 97) return '#f4c20d';
+    return '#ef4444';
+  }
+
+  window.__prodValidUserFinal = validUser;
+  window.__prodSameUserFinal = sameUser;
+
+  window.parseProdWorkbook = function(workbook){
+    const ws = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
+    const out = [];
+    const headerRowIndex = rows.findIndex(r => {
+      const norm = (Array.isArray(r) ? r : []).map(prodNorm);
+      return norm.some(v => v === 'operador' || v === 'usuario') && norm.includes('ctrc');
+    });
+    if(headerRowIndex < 0) return out;
+    const header = rows[headerRowIndex] || [];
+    const norm = header.map(prodNorm);
+    const userCol = norm.findIndex(v => v === 'operador' || v === 'usuario');
+    const findCol = (names) => norm.findIndex(v => names.some(n => v === n || v.replace(/\s+/g,'') === n.replace(/\s+/g,'')));
+    const cols = [
+      { c: findCol(['ctrc']), tipo:'ctrc' },
+      { c: findCol(['manifesto']), tipo:'manifesto' },
+      { c: findCol(['ost']), tipo:'ost' },
+      { c: findCol(['nf.fat','nffat','nf fat']), tipo:'nf.fat' }
+    ].filter(x => x.c >= 0);
+    if(userCol < 0) return out;
+
+    for(let i=headerRowIndex+1; i<rows.length; i++){
+      const row = Array.isArray(rows[i]) ? rows[i] : [];
+      const usuario = displayUser(row[userCol]);
+      if(!validUser(usuario)) continue;
+      cols.forEach(({c,tipo}) => {
+        const quantidade = parseNumber(row[c]);
+        if(Number.isFinite(quantidade) && quantidade > 0){
+          out.push({ usuario, tipo, quantidade });
+        }
+      });
+    }
+    return out;
+  };
+
+  window.aggregateProd = function(){
+    const map = new Map();
+    function ensure(usuarioRaw){
+      const usuario = displayUser(usuarioRaw);
+      if(!validUser(usuario)) return null;
+      const k = keyUser(usuario);
+      if(!map.has(k)){
+        map.set(k, { usuario, usuarioKey:k, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, erroValor:0, performance:null, totalDocs:0 });
+      }
+      return map.get(k);
+    }
+    (state.prodRows || []).forEach(r => {
+      const item = ensure(r.usuario || r.operador || '');
+      if(!item) return;
+      const tipo = normalizeDocType(r.tipo || r.tipo_doc || '');
+      const qtd = Number(r.quantidade || 0);
+      if(!DOC_TYPES.includes(tipo) || qtd <= 0) return;
+      item[tipo] = Number(item[tipo] || 0) + qtd;
+    });
+    (state.setores || []).filter(s => s.setor === 'FATURAMENTO').forEach(s => {
+      const item = ensure(s.usuario || s.operador || '');
+      if(!item) return;
+      item.erros += 1;
+      item.erroValor += Number(s.debit || s.debito || 0);
+    });
+    return Array.from(map.values()).map(x => {
+      x.totalDocs = Number(x['ctrc']||0) + Number(x['manifesto']||0) + Number(x['nf.fat']||0) + Number(x['ost']||0);
+      const base = Number(x['ctrc']||0) + Number(x['ost']||0);
+      const perf = base ? (100 - ((Number(x.erros||0) * 100) / base)) : null;
+      x.performance = perf === null ? null : Math.max(0, Math.min(100, perf));
+      return x;
+    });
+  };
+
+  window.buildProdRowsForSync = function(mes, ano){
+    const map = new Map();
+    (state.prodRows || []).forEach(r => {
+      const operador = displayUser(r.usuario || r.operador || '');
+      const tipo = normalizeDocType(r.tipo || r.tipo_doc || '');
+      const qtd = parseNumber(r.quantidade || 0);
+      if(!validUser(operador) || !tipo || qtd <= 0) return;
+      const key = `${mes}|${ano}|${keyUser(operador)}`;
+      if(!map.has(key)) map.set(key, { mes, ano, operador, ctrc:0, manifesto:0, ost:0, nf_fat:0, total_docs:0, docs_performance:0 });
+      const row = map.get(key);
+      if(tipo === 'ctrc') row.ctrc += qtd;
+      else if(tipo === 'manifesto') row.manifesto += qtd;
+      else if(tipo === 'ost') row.ost += qtd;
+      else if(tipo === 'nf.fat') row.nf_fat += qtd;
+      row.total_docs = row.ctrc + row.manifesto + row.ost + row.nf_fat;
+      row.docs_performance = row.ctrc + row.ost;
+    });
+    return Array.from(map.values());
+  };
+
+  window.renderPerformanceView = function(){
+    const select = document.getElementById('performanceUserSelect');
+    const rowsAll = aggregateProd().filter(x => validUser(x.usuario) && (x.totalDocs > 0 || x.erros > 0));
+    const users = uniqueUsers(rowsAll);
+
+    if(select){
+      const current = select.value || 'TODOS';
+      select.innerHTML = '<option value="TODOS">Todos</option>' + users.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
+      const found = users.find(u => sameUser(u, current));
+      select.value = current === 'TODOS' ? 'TODOS' : (found || 'TODOS');
+      if(typeof __isRestritoUsuarioFinal === 'function' && __isRestritoUsuarioFinal()){
+        const allowed = typeof __usuarioPermitidoFinal === 'function' ? __usuarioPermitidoFinal() : '';
+        const allowedFound = users.find(u => sameUser(u, allowed));
+        if(allowedFound) select.value = allowedFound;
+        else if(validUser(allowed)){
+          const val = displayUser(allowed);
+          select.insertAdjacentHTML('beforeend', `<option value="${esc(val)}">${esc(val)}</option>`);
+          select.value = val;
+        }
+        select.disabled = true;
+      }else{
+        select.disabled = false;
+      }
+    }
+
+    const selected = select ? (select.value || 'TODOS') : 'TODOS';
+    let rows = rowsAll;
+    if(selected !== 'TODOS') rows = rows.filter(x => sameUser(x.usuario, selected));
+
+    const docsRows = sortDesc(rows, 'totalDocs');
+    makeBarChart('chartProdUsuarioMes', docsRows.map(x=>x.usuario), docsRows.map(x=>Number(x.totalDocs || 0)), true, 'Documentos');
+
+    const typeTotals = DOC_TYPES.map(tipo => rows.reduce((s,x)=>s+Number(x[tipo]||0),0));
+    makeBarChart('chartProdTiposMes', ['CTRC','MANIFESTO','NF.FAT','OST'], typeTotals, false, 'Quantidade');
+
+    const perfRows = sortDesc(rows.filter(x => x.performance != null), 'performance');
+    const perfLabels = perfRows.map(x => x.usuario);
+    const perfValues = perfRows.map(x => Number((x.performance || 0).toFixed(2)));
+    const perfColors = perfValues.map(colorPerformance);
+
+    destroyChart('chartPerformance');
+    const ctxPerf = document.getElementById('chartPerformance');
+    if(ctxPerf){
+      state.charts.chartPerformance = new Chart(ctxPerf, {
+        type:'bar',
+        data:{
+          labels: perfLabels.map(l => String(l).length > 18 ? String(l).slice(0,18)+'…' : String(l)),
+          datasets:[{ label:'Performance', data: perfValues, backgroundColor: perfColors, borderColor: perfColors, borderWidth:1 }]
+        },
+        options:{
+          indexAxis:'y', responsive:true, maintainAspectRatio:false,
+          layout:{ padding:{ right:90 } },
+          plugins:{
+            legend:{ labels:{ color:'#fff' } },
+            tooltip:{ callbacks:{ title:(items)=> items.length ? String(perfLabels[items[0].dataIndex] || '') : '', label:(ctx)=> `Performance: ${Number(ctx.raw || 0).toFixed(2)}%` } },
+            datalabels:{ color:'#fff', backgroundColor:'rgba(8,16,29,.88)', borderRadius:4, padding:{top:2,right:4,bottom:2,left:4}, anchor:'end', align:'right', offset:8, clamp:false, clip:false, formatter:v => `${Number(v || 0).toFixed(2)}%`, display:true }
+          },
+          scales:{ x:{ min:90, max:100, ticks:{ color:'#cfe0ff', callback:(v)=>`${v}%` }, grid:{ color:'rgba(255,255,255,.05)' } }, y:{ ticks:{ color:'#cfe0ff' }, grid:{ color:'rgba(255,255,255,.05)' } } }
+        }
+      });
+    }
+
+    const buckets = { 'ÓTIMO 99,51 – 100':0, 'REGULAR 97 – 99,50':0, 'RUIM 90 – 96,9':0 };
+    perfRows.forEach(x => { const p=Number(x.performance||0); if(p>=99.51) buckets['ÓTIMO 99,51 – 100']++; else if(p>=97) buckets['REGULAR 97 – 99,50']++; else buckets['RUIM 90 – 96,9']++; });
+    destroyChart('chartPerformancePie');
+    const ctxPie = document.getElementById('chartPerformancePie');
+    if(ctxPie){
+      state.charts.chartPerformancePie = new Chart(ctxPie, { type:'doughnut', data:{ labels:Object.keys(buckets), datasets:[{ data:Object.values(buckets), backgroundColor:['#12c97a','#f4c20d','#ef4444'], borderColor:['#12c97a','#f4c20d','#ef4444'], borderWidth:1 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'#fff' }, position:'bottom' }, datalabels:{ color:'#fff', formatter:v=>v||'', display:true } } } });
+    }
+  };
+})();
+</script>
+
 </body>
 </html>
