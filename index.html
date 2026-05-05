@@ -551,6 +551,46 @@ function normalizeDocType(v){
   if(s.includes('ctrc')) return 'ctrc';
   return '';
 }
+
+function usuarioKeyProd(v){
+  return String(v || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .replace(/\s+/g,'')
+    .trim();
+}
+function usuarioDisplayProd(v){
+  return String(v || '').trim().toLowerCase();
+}
+function sameUsuarioProd(a,b){
+  return usuarioKeyProd(a) === usuarioKeyProd(b);
+}
+function isUsuarioIndividualProd(v){
+  const s = String(v || '').trim();
+  if(!s) return false;
+  const k = usuarioKeyProd(s);
+  if(!k) return false;
+  if(k === 'todos') return false;
+  if(k.includes('total')) return false;
+  if(/[;,/|]/.test(s)) return false;
+  // usuário válido esperado: nome.sobrenome ou multisoft.service etc
+  return /^[a-zA-ZÀ-ÿ0-9_.-]+$/.test(s);
+}
+function ordenarUsuariosPorValorProd(rows, campo){
+  return (rows || []).slice().sort((a,b)=>Number(b[campo]||0)-Number(a[campo]||0));
+}
+function optionsUsuariosProd(rows){
+  const map = new Map();
+  (rows || []).forEach(r => {
+    const u = r.usuario || r.user || r.operador || '';
+    if(!isUsuarioIndividualProd(u)) return;
+    const key = usuarioKeyProd(u);
+    if(!map.has(key)) map.set(key, usuarioDisplayProd(u));
+  });
+  return Array.from(map.values()).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+}
+
 function parseProdWorkbook(workbook){
   const ws = workbook.Sheets[workbook.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
@@ -559,108 +599,86 @@ function parseProdWorkbook(workbook){
   const headerRowIndex = rows.findIndex(r => {
     const row = Array.isArray(r) ? r : [];
     const normalized = row.map(prodNorm);
-    const hasUserCol = normalized.some(v => v === 'usuario' || v === 'operador');
-    const hasCtrc = normalized.includes('ctrc');
-    return hasUserCol && hasCtrc;
+    return normalized.some(v => v === 'operador' || v === 'usuario') && normalized.includes('ctrc');
   });
   if(headerRowIndex < 0) return out;
 
-  const rawHeader = rows[headerRowIndex] || [];
-  const normalizedHeader = rawHeader.map(prodNorm);
-  const userCol = normalizedHeader.findIndex(v => v === 'usuario' || v === 'operador');
-  const docCols = [];
-  for(let c = 0; c < rawHeader.length; c++){
-    const tipo = normalizeDocType(rawHeader[c]);
-    if(DOC_TYPES.includes(tipo)) docCols.push({ c, tipo });
-  }
-  if(userCol < 0 || !docCols.length) return out;
+  const header = rows[headerRowIndex] || [];
+  const normalized = header.map(prodNorm);
+  const userCol = normalized.findIndex(v => v === 'operador' || v === 'usuario');
+
+  const findCol = (names) => normalized.findIndex(v => names.some(n => v === n || v.replace(/\s+/g,'') === n.replace(/\s+/g,'')));
+  const ctrcCol = findCol(['ctrc']);
+  const manifestoCol = findCol(['manifesto']);
+  const ostCol = findCol(['ost']);
+  const nfFatCol = findCol(['nf.fat','nffat','nf fat']);
+
+  if(userCol < 0) return out;
+
+  const docCols = [
+    { c: ctrcCol, tipo:'ctrc' },
+    { c: manifestoCol, tipo:'manifesto' },
+    { c: ostCol, tipo:'ost' },
+    { c: nfFatCol, tipo:'nf.fat' }
+  ].filter(x => x.c >= 0);
 
   for(let i = headerRowIndex + 1; i < rows.length; i++){
     const row = Array.isArray(rows[i]) ? rows[i] : [];
-    const usuario = prodNorm(row[userCol]);
-    if(!usuario || !isUsuarioIndividualSafe(usuario)) continue;
-    if(usuario.includes('total setor')) continue;
+    const usuarioRaw = String(row[userCol] || '').trim();
+    const usuario = usuarioDisplayProd(usuarioRaw);
 
-    let rowHasAny = false;
+    if(!isUsuarioIndividualProd(usuario)) continue;
+
+    let temValor = false;
     for(const {c, tipo} of docCols){
       const quantidade = parseNumber(row[c]);
       if(!Number.isFinite(quantidade) || quantidade <= 0) continue;
-      rowHasAny = true;
+      temValor = true;
       out.push({ usuario, tipo, quantidade });
     }
-
-    if(!rowHasAny) continue;
+    if(!temValor) continue;
   }
 
-  return out.filter(r => TRACKED_USERS.includes(r.usuario));
+  return out;
 }
-
-function usuarioKeySafe(v){
-  return String(v || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g,'')
-    .toLowerCase()
-    .replace(/\s+/g,'')
-    .trim();
-}
-function sameUsuarioSafe(a,b){
-  return usuarioKeySafe(a) === usuarioKeySafe(b);
-}
-
-function isUsuarioIndividualSafe(v){
-  const s = String(v || '').trim();
-  if(!s) return false;
-  const key = usuarioKeySafe(s);
-  if(!key) return false;
-  if(key.includes(',')) return false;
-  if(key.includes(';')) return false;
-  if(key.includes('/')) return false;
-  if(key.includes('todos')) return false;
-  if(key.includes('totals')) return false;
-  if(key.includes('totalsetor')) return false;
-  return true;
-}
-function uniqueUsuariosIndividuaisSafe(rows){
-  const map = new Map();
-  (rows || []).forEach(r => {
-    const nome = String(r.usuario || r.operador || '').trim();
-    if(!isUsuarioIndividualSafe(nome)) return;
-    const key = usuarioKeySafe(nome);
-    if(!map.has(key)) map.set(key, nome);
-  });
-  return Array.from(map.values()).sort((a,b)=>a.localeCompare(b,'pt-BR'));
-}
-
 function aggregateProd(){
   const map = new Map();
 
-  function ensureProdUser(usuarioRaw){
-    if(!isUsuarioIndividualSafe(usuarioRaw)) return null;
-    const key = usuarioKeySafe(usuarioRaw);
+  function ensureUser(usuarioRaw){
+    if(!isUsuarioIndividualProd(usuarioRaw)) return null;
+    const key = usuarioKeyProd(usuarioRaw);
     if(!key) return null;
     if(!map.has(key)){
-      map.set(key, { usuario:String(usuarioRaw || '').trim(), usuarioKey:key, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 });
+      map.set(key, {
+        usuario: usuarioDisplayProd(usuarioRaw),
+        usuarioKey: key,
+        'ctrc':0,
+        'manifesto':0,
+        'nf.fat':0,
+        'ost':0,
+        erros:0,
+        performance:null,
+        totalDocs:0
+      });
     }
     return map.get(key);
   }
 
-  TRACKED_USERS.forEach(u => ensureProdUser(u));
-
   (state.prodRows || []).forEach(r => {
-    const uRaw = r.usuario || r.operador || '';
-    const t = normalizeDocType(r.tipo || r.tipo_doc || '');
-    if(!uRaw || !DOC_TYPES.includes(t)) return;
-    const row = ensureProdUser(uRaw);
-    if(!row) return;
-    row[t] = (row[t] || 0) + Number(r.quantidade || 0);
+    const usuario = r.usuario || r.operador || '';
+    const tipo = normalizeDocType(r.tipo || r.tipo_doc || '');
+    const quantidade = Number(r.quantidade || 0);
+    if(!DOC_TYPES.includes(tipo) || quantidade <= 0) return;
+    const item = ensureUser(usuario);
+    if(!item) return;
+    item[tipo] = Number(item[tipo] || 0) + quantidade;
   });
 
   (state.setores || []).filter(s => s.setor === 'FATURAMENTO').forEach(s => {
-    const uRaw = s.usuario || s.operador || '';
-    if(!uRaw) return;
-    const row = ensureProdUser(uRaw);
-    if(!row) return;
-    row.erros += 1;
+    const usuario = s.usuario || s.operador || '';
+    const item = ensureUser(usuario);
+    if(!item) return;
+    item.erros += 1;
   });
 
   return Array.from(map.values()).map(x => {
@@ -776,11 +794,11 @@ function buildRefRowsForSync(mes, ano){
 function buildProdRowsForSync(mes, ano){
   const prodMap = new Map();
   (state.prodRows || []).forEach(r => {
-    const operador = String(r.usuario || r.operador || '').trim().toUpperCase();
+    const operador = usuarioDisplayProd(r.usuario || r.operador || '');
     const tipo = normalizeDocType(r.tipo || r.tipo_doc || '');
     const qtd = parseNumber(r.quantidade || 0);
-    if(!operador || !tipo || qtd <= 0) return;
-    const key = `${mes}|${ano}|${operador}`;
+    if(!isUsuarioIndividualProd(operador) || !tipo || qtd <= 0) return;
+    const key = `${mes}|${ano}|${usuarioKeyProd(operador)}`;
     if(!prodMap.has(key)){
       prodMap.set(key, { mes, ano, operador, ctrc:0, manifesto:0, ost:0, nf_fat:0, total_docs:0, docs_performance:0 });
     }
@@ -915,7 +933,8 @@ async function loadMonthFromSupabase(monthKey){
   }));
   state.prodRows = [];
   allProd.forEach(r => {
-    const usuario = prodNorm(r.operador || '');
+    const usuario = usuarioDisplayProd(r.operador || '');
+    if(!isUsuarioIndividualProd(usuario)) return;
     const pushRow = (tipo, quantidade) => {
       const q = parseNumber(quantidade || 0);
       if(q > 0) state.prodRows.push({ usuario, tipo, quantidade: q });
@@ -2368,29 +2387,19 @@ function renderAnnualView(){
 }
 
 
-
-function ordenarDescSafe(labels, valores){
-  const arr = labels.map((label, i) => ({ label, valor:Number(valores[i] || 0) }));
-  arr.sort((a,b) => b.valor - a.valor);
-  return { labels: arr.map(x=>x.label), valores: arr.map(x=>x.valor) };
-}
 function renderPerformanceView(){
-  const rows = aggregateProd().filter(x => (x.totalDocs > 0 || x.erros > 0) && isUsuarioIndividualSafe(x.usuario));
+  const rows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
   const select = document.getElementById('performanceUserSelect');
   if(select){
     const cur = select.value || 'TODOS';
-    const usuarios = uniqueUsuariosIndividuaisSafe(rows);
-    select.innerHTML = '<option value="TODOS">Todos</option>' + usuarios.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
-    const found = usuarios.find(u => sameUsuarioSafe(u, cur));
-    select.value = cur === 'TODOS' ? 'TODOS' : (found || 'TODOS');
-    __applyUsuarioLockFinal(select);
+    select.innerHTML = '<option value="TODOS">Todos</option>' + rows.map(x => `<option value="${esc(x.usuario)}">${esc(x.usuario)}</option>`).join('');
+    select.value = rows.some(x => x.usuario === cur) || cur === 'TODOS' ? cur : 'TODOS';
   }
   const selectedUser = select?.value || 'TODOS';
-  const selected = selectedUser === 'TODOS' ? null : (rows.find(x => sameUsuarioSafe(x.usuario, selectedUser)) || null);
+  const selected = selectedUser === 'TODOS' ? null : (rows.find(x => x.usuario === selectedUser) || null);
   const sourceRows = selected ? [selected] : rows;
 
-  const ordDocsSafe = ordenarDescSafe(sourceRows.map(x => x.usuario), sourceRows.map(x => x.totalDocs));
-  makeBarChart('chartProdUsuarioMes', ordDocsSafe.labels, ordDocsSafe.valores, true, 'Quantidade');
+  makeBarChart('chartProdUsuarioMes', sourceRows.map(x => x.usuario), sourceRows.map(x => x.totalDocs), true, 'Quantidade');
   const docs = ['ctrc','manifesto','nf.fat','ost'];
   if(selected){
     makeBarChart('chartProdTiposMes', docs.map(d => d.toUpperCase()), docs.map(d => Number(selected[d]||0)), false, 'Quantidade');
@@ -2893,8 +2902,7 @@ function renderPerformanceView(){
     ? rows
     : rows.filter(x => x.usuario === selectedUser);
 
-  const ordDocsSafe = ordenarDescSafe(sourceRows.map(x => x.usuario), sourceRows.map(x => x.totalDocs));
-  makeBarChart('chartProdUsuarioMes', ordDocsSafe.labels, ordDocsSafe.valores, true, 'Quantidade');
+  makeBarChart('chartProdUsuarioMes', sourceRows.map(x => x.usuario), sourceRows.map(x => x.totalDocs), true, 'Quantidade');
 
   const docs = ['ctrc','manifesto','nf.fat','ost'];
   if(sourceRows.length === 1){
@@ -3529,23 +3537,45 @@ function __ensureUsuarioTopFilterFinal(){
 function __setOptionsPreserveFinal(select, values, defaultLabel){
   if(!select) return 'TODOS';
   const current = select.value || 'TODOS';
-  const opts = ['<option value="TODOS">'+(defaultLabel || 'Todos')+'</option>'].concat(values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`));
+  const cleaned = [];
+  const seen = new Set();
+
+  (values || []).forEach(v => {
+    if(!isUsuarioIndividualProd(v)) return;
+    const key = usuarioKeyProd(v);
+    if(seen.has(key)) return;
+    seen.add(key);
+    cleaned.push(usuarioDisplayProd(v));
+  });
+
+  cleaned.sort((a,b)=>a.localeCompare(b,'pt-BR'));
+
+  const opts = ['<option value="TODOS">'+(defaultLabel || 'Todos')+'</option>']
+    .concat(cleaned.map(v => `<option value="${esc(v)}">${esc(v)}</option>`));
+
   select.innerHTML = opts.join('');
-  if(current !== 'TODOS' && values.includes(current)) select.value = current;
-  else select.value = 'TODOS';
+
+  if(current !== 'TODOS'){
+    const found = cleaned.find(v => sameUsuarioProd(v, current));
+    select.value = found || 'TODOS';
+  }else{
+    select.value = 'TODOS';
+  }
+
   return select.value;
 }
 function __applyUsuarioLockFinal(select){
   if(!select) return;
   if(__isRestritoUsuarioFinal()){
     const allowed = __usuarioPermitidoFinal();
-    if(allowed && isUsuarioIndividualSafe(allowed)){
-      const found = Array.from(select.options).find(o => sameUsuarioSafe(o.value, allowed) || sameUsuarioSafe(o.textContent, allowed));
+    if(allowed && isUsuarioIndividualProd(allowed)){
+      const found = Array.from(select.options || []).find(o => sameUsuarioProd(o.value, allowed) || sameUsuarioProd(o.textContent, allowed));
       if(found){
         select.value = found.value;
       }else{
-        select.insertAdjacentHTML('beforeend', `<option value="${esc(allowed)}">${esc(allowed)}</option>`);
-        select.value = allowed;
+        const val = usuarioDisplayProd(allowed);
+        select.insertAdjacentHTML('beforeend', `<option value="${esc(val)}">${esc(val)}</option>`);
+        select.value = val;
       }
     }
     select.disabled = true;
@@ -3797,32 +3827,25 @@ function renderUsuariosView(){
     ? detailRows.map(r => `<tr><td><strong>${esc(r.cte)}</strong></td><td>${esc(r.cliente || '-')}</td><td>${esc(r.usuario)}</td><td>${esc(r.motivo)}</td><td>${fmtMoney(r.valor)}</td><td>${esc(r.setor)}</td></tr>`).join('')
     : `<tr><td colspan="6" class="center muted">Sem dados para o usuário selecionado</td></tr>`;
 }
-function __performanceColorFinal(p){
-  p = Number(p || 0);
-  if(p >= 99.51) return '#12c97a';   // ótimo
-  if(p >= 97) return '#f4c20d';      // regular
-  return '#ef4444';                  // ruim
-}
-
 function renderPerformanceView(){
   const select = document.getElementById('performanceUserSelect');
-  const rowsAll = aggregateProd();
-  const allUsers = rowsAll.map(x => x.usuario).filter(Boolean);
+  const rowsAll = aggregateProd().filter(x => isUsuarioIndividualProd(x.usuario) && (x.totalDocs > 0 || x.erros > 0));
+  const allUsers = optionsUsuariosProd(rowsAll);
+
   let selected = __setOptionsPreserveFinal(select, allUsers, 'Todos');
   __applyUsuarioLockFinal(select);
   selected = select ? (select.value || 'TODOS') : 'TODOS';
 
   let rows = rowsAll;
-  if(selected !== 'TODOS') rows = rows.filter(x => x.usuario === selected);
+  if(selected !== 'TODOS') rows = rows.filter(x => sameUsuarioProd(x.usuario, selected));
 
-  const docsLabels = rows.map(x => x.usuario);
-  const docsData = rows.map(x => x.totalDocs || 0);
-  makeBarChart('chartProdUsuarioMes', docsLabels, docsData, true, 'Documentos');
+  const docsRows = ordenarUsuariosPorValorProd(rows, 'totalDocs');
+  makeBarChart('chartProdUsuarioMes', docsRows.map(x => x.usuario), docsRows.map(x => Number(x.totalDocs || 0)), true, 'Documentos');
 
   const typeTotals = DOC_TYPES.map(tipo => rows.reduce((s,x)=>s+Number(x[tipo]||0),0));
   makeBarChart('chartProdTiposMes', ['CTRC','MANIFESTO','NF.FAT','OST'], typeTotals, false, 'Quantidade');
 
-  const perfRows = rows.filter(x => x.performance != null);
+  const perfRows = ordenarUsuariosPorValorProd(rows.filter(x => x.performance != null), 'performance');
   const perfLabels = perfRows.map(x => x.usuario);
   const perfValues = perfRows.map(x => Number((x.performance || 0).toFixed(2)));
   const perfColors = perfValues.map(__performanceColorFinal);
