@@ -1074,8 +1074,17 @@ function monthKey(v){
   return iso ? iso.slice(0,7) : '';
 }
 function classifyStatus(reqDate, baixaDate){
-  if(!toInputDate(reqDate)) return 'empty';
-  return monthKey(reqDate) === monthKey(baixaDate) ? 'ok' : 'bad';
+  const req = toInputDate(reqDate);
+  const baixa = toInputDate(baixaDate);
+
+  // Sem data de solicitação = continua sendo "sem solicitação".
+  if(!req) return 'empty';
+
+  // Se a baixa ainda não veio do Excel/Supabase, NÃO marcar como mês diferente.
+  // Antes isso virava falso positivo, porque comparava solicitação preenchida com baixa vazia.
+  if(!baixa) return 'ok';
+
+  return req.slice(0,7) === baixa.slice(0,7) ? 'ok' : 'bad';
 }
 function statusTag(status){
   if(status === 'ok') return '<span class="tag ok">Mês correto</span>';
@@ -1282,6 +1291,42 @@ function makeBarChart(id, labels, data, horizontal=false, label='Valor'){
       scales:{
         x:{ ticks:{ color:'#cfe0ff' }, grid:{ color:'rgba(255,255,255,.05)' } },
         y:{ ticks:{ color:'#cfe0ff' }, grid:{ color:'rgba(255,255,255,.05)' } }
+      }
+    }
+  });
+}
+
+function makePieChart(id, labels, data, label='Quantidade'){
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if(!ctx) return;
+  const values = (data || []).map(v => Number(v || 0));
+  const total = values.reduce((a,b)=>a+b,0);
+  state.charts[id] = new Chart(ctx, {
+    type:'doughnut',
+    data:{
+      labels:(labels || []).map(x => String(x)),
+      datasets:[{ label, data:values }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{ labels:{ color:'#fff' }, position:'bottom' },
+        tooltip:{
+          callbacks:{
+            label:(ctx)=> {
+              const val = Number(ctx.raw || 0);
+              const pct = total ? ((val * 100) / total).toFixed(1).replace('.', ',') : '0,0';
+              return `${ctx.label}: ${label === 'Valor' ? fmtMoney(val) : val} (${pct}%)`;
+            }
+          }
+        },
+        datalabels:{
+          color:'#fff',
+          formatter:(v)=> total ? `${((Number(v||0)*100)/total).toFixed(0)}%` : '',
+          display:(ctx)=> total && Number(ctx.dataset.data[ctx.dataIndex] || 0) > 0
+        }
       }
     }
   });
@@ -3718,82 +3763,5 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 </script>
-
-<script>
-/* === PATCH FINAL ESTAVEL: meses, leitura Supabase, mês diferente e bootstrap === */
-function classifyStatus(reqDate, baixaDate){
-  const req = toInputDate(reqDate);
-  const baixa = toInputDate(baixaDate);
-  if(!req) return 'empty';
-  if(!baixa) return 'ok'; // sem baixa não deve virar "mês diferente" falso
-  return req.slice(0,7) === baixa.slice(0,7) ? 'ok' : 'bad';
-}
-
-async function fetchRemoteMonthKeys(){
-  if(!ensureSupabaseConnected()) return [];
-  const keySet = new Set();
-  const addRows = rows => (rows || []).forEach(r => {
-    const ano = String(r.ano || '').trim();
-    const mes = String(r.mes || '').padStart(2,'0');
-    if(/^\d{4}$/.test(ano) && /^\d{2}$/.test(mes)) keySet.add(`${ano}-${mes}`);
-  });
-
-  const q1 = await state.supabase.from('meses_importados').select('mes,ano');
-  if(!q1.error) addRows(q1.data);
-  else console.warn('meses_importados indisponível:', q1.error.message);
-
-  const q2 = await state.supabase.from('refaturamento_importado').select('mes,ano');
-  if(!q2.error) addRows(q2.data);
-  else console.warn('refaturamento_importado meses indisponível:', q2.error.message);
-
-  const q3 = await state.supabase.from('produtividade_usuarios').select('mes,ano');
-  if(!q3.error) addRows(q3.data);
-  else console.warn('produtividade_usuarios meses indisponível:', q3.error.message);
-
-  const keys = Array.from(keySet).sort();
-  state.remoteMonths = keys;
-  refreshMonthViewSelect();
-  return keys;
-}
-
-async function applyMonthViewSelection(){
-  const select = document.getElementById('monthViewSelect');
-  if(!select) return;
-  const key = select.value || '';
-  if(!key){
-    state.selectedMonthKey = '';
-    applySnapshot(state.live);
-    renderAll();
-    return;
-  }
-  const loaded = await loadMonthFromSupabase(key);
-  if(loaded) return;
-  const entry = state.annual[key];
-  if(entry && entry.snapshot){
-    state.selectedMonthKey = key;
-    applySnapshot(entry.snapshot);
-    renderAll();
-    return;
-  }
-  alert('Não foi possível carregar este mês da Supabase.');
-}
-
-async function bootstrap(){
-  const rb = document.getElementById('reasonBox');
-  if(rb) rb.value = state.reasons.join('\n');
-  connectSupabase();
-  await loadManualFromSupabase();
-  const keys = await fetchRemoteMonthKeys();
-  const preferred = state.selectedMonthKey && keys.includes(state.selectedMonthKey)
-    ? state.selectedMonthKey
-    : (keys[keys.length - 1] || '');
-  if(preferred){
-    await loadMonthFromSupabase(preferred);
-  }else{
-    renderAll();
-  }
-}
-</script>
-
 </body>
 </html>
