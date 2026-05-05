@@ -578,7 +578,7 @@ function parseProdWorkbook(workbook){
   for(let i = headerRowIndex + 1; i < rows.length; i++){
     const row = Array.isArray(rows[i]) ? rows[i] : [];
     const usuario = prodNorm(row[userCol]);
-    if(!usuario) continue;
+    if(!usuario || !isUsuarioIndividualSafe(usuario)) continue;
     if(usuario.includes('total setor')) continue;
 
     let rowHasAny = false;
@@ -607,10 +607,35 @@ function sameUsuarioSafe(a,b){
   return usuarioKeySafe(a) === usuarioKeySafe(b);
 }
 
+function isUsuarioIndividualSafe(v){
+  const s = String(v || '').trim();
+  if(!s) return false;
+  const key = usuarioKeySafe(s);
+  if(!key) return false;
+  if(key.includes(',')) return false;
+  if(key.includes(';')) return false;
+  if(key.includes('/')) return false;
+  if(key.includes('todos')) return false;
+  if(key.includes('totals')) return false;
+  if(key.includes('totalsetor')) return false;
+  return true;
+}
+function uniqueUsuariosIndividuaisSafe(rows){
+  const map = new Map();
+  (rows || []).forEach(r => {
+    const nome = String(r.usuario || r.operador || '').trim();
+    if(!isUsuarioIndividualSafe(nome)) return;
+    const key = usuarioKeySafe(nome);
+    if(!map.has(key)) map.set(key, nome);
+  });
+  return Array.from(map.values()).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+}
+
 function aggregateProd(){
   const map = new Map();
 
   function ensureProdUser(usuarioRaw){
+    if(!isUsuarioIndividualSafe(usuarioRaw)) return null;
     const key = usuarioKeySafe(usuarioRaw);
     if(!key) return null;
     if(!map.has(key)){
@@ -2350,12 +2375,15 @@ function ordenarDescSafe(labels, valores){
   return { labels: arr.map(x=>x.label), valores: arr.map(x=>x.valor) };
 }
 function renderPerformanceView(){
-  const rows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
+  const rows = aggregateProd().filter(x => (x.totalDocs > 0 || x.erros > 0) && isUsuarioIndividualSafe(x.usuario));
   const select = document.getElementById('performanceUserSelect');
   if(select){
     const cur = select.value || 'TODOS';
-    select.innerHTML = '<option value="TODOS">Todos</option>' + rows.map(x => `<option value="${esc(x.usuario)}">${esc(x.usuario)}</option>`).join('');
-    select.value = rows.some(x => sameUsuarioSafe(x.usuario, cur)) || cur === 'TODOS' ? cur : 'TODOS';
+    const usuarios = uniqueUsuariosIndividuaisSafe(rows);
+    select.innerHTML = '<option value="TODOS">Todos</option>' + usuarios.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
+    const found = usuarios.find(u => sameUsuarioSafe(u, cur));
+    select.value = cur === 'TODOS' ? 'TODOS' : (found || 'TODOS');
+    __applyUsuarioLockFinal(select);
   }
   const selectedUser = select?.value || 'TODOS';
   const selected = selectedUser === 'TODOS' ? null : (rows.find(x => sameUsuarioSafe(x.usuario, selectedUser)) || null);
@@ -3511,10 +3539,11 @@ function __applyUsuarioLockFinal(select){
   if(!select) return;
   if(__isRestritoUsuarioFinal()){
     const allowed = __usuarioPermitidoFinal();
-    if(allowed){
+    if(allowed && isUsuarioIndividualSafe(allowed)){
       const found = Array.from(select.options).find(o => sameUsuarioSafe(o.value, allowed) || sameUsuarioSafe(o.textContent, allowed));
-      if(found) select.value = found.value;
-      else{
+      if(found){
+        select.value = found.value;
+      }else{
         select.insertAdjacentHTML('beforeend', `<option value="${esc(allowed)}">${esc(allowed)}</option>`);
         select.value = allowed;
       }
