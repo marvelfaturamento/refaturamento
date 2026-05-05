@@ -591,24 +591,56 @@ function parseProdWorkbook(workbook){
 
     if(!rowHasAny) continue;
   }
-
-  return out.filter(r => TRACKED_USERS.includes(r.usuario));
+  return out.filter(r => r.usuario);
 }
+
+function usuarioKeyFinal(v){
+  return String(v || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .replace(/\s+/g,'')
+    .replace(/_/g,'.')
+    .trim();
+}
+function usuarioDisplayFinal(v){
+  return String(v || '').trim();
+}
+function sameUsuarioFinal(a,b){
+  return usuarioKeyFinal(a) === usuarioKeyFinal(b);
+}
+
 function aggregateProd(){
   const map = new Map();
-  TRACKED_USERS.forEach(u => map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 }));
+
+  function ensureUser(usuarioRaw){
+    const key = usuarioKeyFinal(usuarioRaw);
+    if(!key) return null;
+    if(!map.has(key)){
+      map.set(key, { usuario: usuarioDisplayFinal(usuarioRaw), usuarioKey:key, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 });
+    }
+    return map.get(key);
+  }
+
+  TRACKED_USERS.forEach(u => ensureUser(u));
+
   (state.prodRows || []).forEach(r => {
-    const u = prodNorm(r.usuario); const t = normalizeDocType(r.tipo);
-    if(!u || !DOC_TYPES.includes(t)) return;
-    if(!map.has(u)) map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 });
-    map.get(u)[t] = (map.get(u)[t] || 0) + Number(r.quantidade || 0);
+    const uRaw = r.usuario || r.operador || '';
+    const t = normalizeDocType(r.tipo || r.tipo_doc || '');
+    if(!uRaw || !DOC_TYPES.includes(t)) return;
+    const item = ensureUser(uRaw);
+    if(!item) return;
+    item[t] = (item[t] || 0) + Number(r.quantidade || 0);
   });
+
   (state.setores || []).filter(s => s.setor === 'FATURAMENTO').forEach(s => {
-    const u = prodNorm(s.usuario || '');
-    if(!u) return;
-    if(!map.has(u)) map.set(u, { usuario:u, 'ctrc':0, 'manifesto':0, 'nf.fat':0, 'ost':0, erros:0, performance:null, totalDocs:0 });
-    map.get(u).erros += 1;
+    const uRaw = s.usuario || s.operador || '';
+    if(!uRaw) return;
+    const item = ensureUser(uRaw);
+    if(!item) return;
+    item.erros += 1;
   });
+
   return Array.from(map.values()).map(x => {
     x.totalDocs = Number(x['ctrc']||0) + Number(x['manifesto']||0) + Number(x['nf.fat']||0) + Number(x['ost']||0);
     const base = Number(x['ctrc']||0) + Number(x['ost']||0);
@@ -722,10 +754,12 @@ function buildRefRowsForSync(mes, ano){
 function buildProdRowsForSync(mes, ano){
   const prodMap = new Map();
   (state.prodRows || []).forEach(r => {
-    const operador = String(r.usuario || r.operador || '').trim().toUpperCase();
+    const operadorOriginal = String(r.usuario || r.operador || '').trim();
+    const operador = usuarioKeyFinal(operadorOriginal);
     const tipo = normalizeDocType(r.tipo || r.tipo_doc || '');
     const qtd = parseNumber(r.quantidade || 0);
     if(!operador || !tipo || qtd <= 0) return;
+
     const key = `${mes}|${ano}|${operador}`;
     if(!prodMap.has(key)){
       prodMap.set(key, { mes, ano, operador, ctrc:0, manifesto:0, ost:0, nf_fat:0, total_docs:0, docs_performance:0 });
@@ -861,7 +895,7 @@ async function loadMonthFromSupabase(monthKey){
   }));
   state.prodRows = [];
   allProd.forEach(r => {
-    const usuario = prodNorm(r.operador || '');
+    const usuario = String(r.operador_nome || r.operador || '').trim();
     const pushRow = (tipo, quantidade) => {
       const q = parseNumber(quantidade || 0);
       if(q > 0) state.prodRows.push({ usuario, tipo, quantidade: q });
@@ -3487,17 +3521,21 @@ function __setOptionsPreserveFinal(select, values, defaultLabel){
 }
 function __applyUsuarioLockFinal(select){
   if(!select) return;
-  if(__isRestritoUsuarioFinal()){
-    const allowed = __usuarioPermitidoFinal();
-    if(allowed){
-      if(!Array.from(select.options).some(o => o.value === allowed)){
-        select.insertAdjacentHTML('beforeend', `<option value="${esc(allowed)}">${esc(allowed)}</option>`);
-      }
-      select.value = allowed;
+  const perfilAtual = String(perfil || '').toLowerCase();
+  const ref = String(usuarioRef || '').trim();
+  if(!ref) return;
+  if(perfilAtual === 'consulta' || perfilAtual === 'operacional'){
+    const opts = Array.from(select.options || []);
+    const found = opts.find(o => sameUsuarioFinal(o.value, ref) || sameUsuarioFinal(o.textContent, ref));
+    if(found) select.value = found.value;
+    else {
+      const opt = document.createElement('option');
+      opt.value = ref;
+      opt.textContent = ref;
+      select.appendChild(opt);
+      select.value = ref;
     }
     select.disabled = true;
-  }else{
-    select.disabled = false;
   }
 }
 function __remoteRefKeyFinal(row){
@@ -3760,7 +3798,7 @@ function renderPerformanceView(){
   selected = select ? (select.value || 'TODOS') : 'TODOS';
 
   let rows = rowsAll;
-  if(selected !== 'TODOS') rows = rows.filter(x => x.usuario === selected);
+  if(selected !== 'TODOS') rows = rows.filter(x => sameUsuarioFinal(x.usuario, selected));
 
   const docsLabels = rows.map(x => x.usuario);
   const docsData = rows.map(x => x.totalDocs || 0);
