@@ -2314,6 +2314,21 @@ function renderAnnualView(){
 }
 
 
+
+function ordenarDesc(labels, valores){
+  const combinado = labels.map((l, i) => ({
+    label: l,
+    valor: Number(valores[i] || 0),
+    idx: i
+  }));
+  combinado.sort((a, b) => b.valor - a.valor);
+  return {
+    labels: combinado.map(x => x.label),
+    valores: combinado.map(x => x.valor),
+    indices: combinado.map(x => x.idx)
+  };
+}
+
 function renderPerformanceView(){
   const rows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
   const select = document.getElementById('performanceUserSelect');
@@ -3749,7 +3764,8 @@ function renderPerformanceView(){
 
   const docsLabels = rows.map(x => x.usuario);
   const docsData = rows.map(x => x.totalDocs || 0);
-  makeBarChart('chartProdUsuarioMes', docsLabels, docsData, true, 'Documentos');
+  const ordenadoDocs = ordenarDesc(docsLabels, docsData);
+  makeBarChart('chartProdUsuarioMes', ordenadoDocs.labels, ordenadoDocs.valores, true, 'Documentos');
 
   const typeTotals = DOC_TYPES.map(tipo => rows.reduce((s,x)=>s+Number(x[tipo]||0),0));
   makeBarChart('chartProdTiposMes', ['CTRC','MANIFESTO','NF.FAT','OST'], typeTotals, false, 'Quantidade');
@@ -3757,7 +3773,8 @@ function renderPerformanceView(){
   const perfRows = rows.filter(x => x.performance != null);
   const perfLabels = perfRows.map(x => x.usuario);
   const perfValues = perfRows.map(x => Number((x.performance || 0).toFixed(2)));
-  const perfColors = perfValues.map(__performanceColorFinal);
+  const ordenadoPerf = ordenarDesc(perfLabels, perfValues);
+  const perfColors = ordenadoPerf.valores.map(__performanceColorFinal);
 
   destroyChart('chartPerformance');
   const ctxPerf = document.getElementById('chartPerformance');
@@ -3765,10 +3782,10 @@ function renderPerformanceView(){
     state.charts.chartPerformance = new Chart(ctxPerf, {
       type:'bar',
       data:{
-        labels: perfLabels.map(l => String(l).length > 18 ? String(l).slice(0,18) + '…' : String(l)),
+        labels: ordenadoPerf.labels.map(l => String(l).length > 18 ? String(l).slice(0,18) + '…' : String(l)),
         datasets:[{
           label:'Performance',
-          data: perfValues,
+          data: ordenadoPerf.valores,
           backgroundColor: perfColors,
           borderColor: perfColors,
           borderWidth: 1
@@ -3785,7 +3802,7 @@ function renderPerformanceView(){
             callbacks:{
               title:(items)=>{
                 if(!items.length) return '';
-                return String(perfLabels[items[0].dataIndex] || '');
+                return String(ordenadoPerf.labels[items[0].dataIndex] || '');
               },
               label:(ctx)=> `Performance: ${Number(ctx.raw || 0).toFixed(2)}%`
             }
