@@ -155,18 +155,6 @@
     </section>
 
     <section id="usuarios" class="view">
-  <div class="card" style="margin-bottom:16px;">
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
-      <div>
-        <h3>Filtro de usuário</h3>
-        <div class="sub">Admin pode selecionar todos. Operacional e consulta ficam travados no próprio usuário.</div>
-      </div>
-      <div class="field" style="max-width:280px; min-width:200px;">
-        <label>Usuário</label>
-        <select id="filtroUsuarioTop"></select>
-      </div>
-    </div>
-  </div>
   <div class="grid grid-2">
     <div class="card"><h3>Usuários que mais cometem erro</h3><div class="sub">Somente setor Faturamento.</div><div class="chart-box"><canvas id="chartUsuariosErroQtd"></canvas></div></div>
     <div class="card"><h3>Usuários que mais cometem erro por valor</h3><div class="sub">Somente setor Faturamento, usando débito.</div><div class="chart-box"><canvas id="chartUsuariosErroValor"></canvas></div></div>
@@ -441,38 +429,6 @@ create table if not exists manual (
  const params = new URLSearchParams(window.location.search);
 const perfil = params.get("perfil");
 const usuario = params.get("usuario") || "";
-const usuarioRefParam = (params.get("usuarioRef") || usuario || "").toLowerCase().trim();
-
-function perfilAtual(){
-  return String(perfil || 'admin').toLowerCase().trim();
-}
-function usuarioRestritoAtual(){
-  return String(usuarioRefParam || '').toLowerCase().trim();
-}
-function usuarioTemRestricao(){
-  return ['operacional','consulta'].includes(perfilAtual()) && !!usuarioRestritoAtual();
-}
-function mesmoUsuarioAcesso(user){
-  if(!usuarioTemRestricao()) return true;
-  return prodNorm(user || '') === prodNorm(usuarioRestritoAtual());
-}
-function aplicarBloqueioSelectUsuario(select){
-  if(!select) return;
-  if(usuarioTemRestricao()){
-    const ref = usuarioRestritoAtual();
-    const exists = Array.from(select.options || []).some(o => prodNorm(o.value) === prodNorm(ref));
-    if(!exists){
-      const opt = document.createElement('option');
-      opt.value = ref;
-      opt.textContent = ref;
-      select.appendChild(opt);
-    }
-    select.value = Array.from(select.options || []).find(o => prodNorm(o.value) === prodNorm(ref))?.value || ref;
-    select.disabled = true;
-  } else {
-    select.disabled = false;
-  }
-}
 
 if (!perfil) {
   alert("Acesso não autorizado. Entre pelo menu principal.");
@@ -719,7 +675,8 @@ function buildRefRowsForSync(mes, ano){
       frete_refaturado: parseNumber(r.freteRefaturado || 0),
       frete_substituto: 0,
       reduzido: String(r.reduzido || '').trim(),
-      motivo_baixa: String(r.motivoBaixa || '').trim()
+      motivo_baixa: String(r.motivoBaixa || '').trim(),
+      data_baixa: toInputDate(r.dataRefaturado) || null
     });
   });
   (state.substitutos || []).forEach(r => {
@@ -738,7 +695,8 @@ function buildRefRowsForSync(mes, ano){
       frete_refaturado: 0,
       frete_substituto: parseNumber(r.freteSubstituto || 0),
       reduzido: String(r.reduzido || '').trim(),
-      motivo_baixa: String(r.motivoBaixa || '').trim()
+      motivo_baixa: String(r.motivoBaixa || '').trim(),
+      data_baixa: toInputDate(r.dataSubstituto) || null
     });
   });
   (state.setores || []).forEach(s => {
@@ -755,7 +713,8 @@ function buildRefRowsForSync(mes, ano){
       frete_refaturado: 0,
       frete_substituto: 0,
       reduzido: '',
-      motivo_baixa: ''
+      motivo_baixa: '',
+      data_baixa: null
     });
   });
   return rows;
@@ -794,6 +753,7 @@ function sameRefRow(a, b){
     && normalizeRowValue(a.setor) === normalizeRowValue(b.setor)
     && normalizeRowValue(a.reduzido) === normalizeRowValue(b.reduzido)
     && normalizeRowValue(a.motivo_baixa) === normalizeRowValue(b.motivo_baixa)
+    && normalizeRowValue(a.data_baixa) === normalizeRowValue(b.data_baixa)
     && normalizeRowValue(parseNumber(a.debito || 0)) === normalizeRowValue(parseNumber(b.debito || 0))
     && normalizeRowValue(parseNumber(a.frete_refaturado || 0)) === normalizeRowValue(parseNumber(b.frete_refaturado || 0))
     && normalizeRowValue(parseNumber(a.frete_substituto || 0)) === normalizeRowValue(parseNumber(b.frete_substituto || 0))
@@ -854,7 +814,7 @@ async function loadMonthFromSupabase(monthKey){
 
   state.sheets = ['supabase'];
   state.refaturados = refRows.map(r => ({
-    dataRefaturado: '',
+    dataRefaturado: r.data_baixa || '',
     tomadorRefaturado: r.cliente || '',
     refaturado: r.documento || '',
     freteRefaturado: parseNumber(r.frete_refaturado || 0),
@@ -873,7 +833,7 @@ async function loadMonthFromSupabase(monthKey){
     setorLancamento: r.setor || ''
   }));
   state.substitutos = subRows.map(r => ({
-    dataSubstituto: '',
+    dataSubstituto: r.data_baixa || '',
     tomadorSubstituto: r.cliente || '',
     substituto: r.documento || '',
     freteSubstituto: parseNumber(r.frete_substituto || 0),
@@ -1101,8 +1061,22 @@ function parseNumber(v){
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
-function monthKey(v){ return v ? String(v).slice(0,7) : ''; }
-function classifyStatus(reqDate, baixaDate){ if(!reqDate) return 'empty'; return monthKey(reqDate) === monthKey(baixaDate) ? 'ok' : 'bad'; }
+function toInputDate(v){
+  const s = String(v || '').trim();
+  if(!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return '';
+}
+function monthKey(v){
+  const iso = toInputDate(v);
+  return iso ? iso.slice(0,7) : '';
+}
+function classifyStatus(reqDate, baixaDate){
+  if(!toInputDate(reqDate)) return 'empty';
+  return monthKey(reqDate) === monthKey(baixaDate) ? 'ok' : 'bad';
+}
 function statusTag(status){
   if(status === 'ok') return '<span class="tag ok">Mês correto</span>';
   if(status === 'bad') return '<span class="tag bad">Mês diferente</span>';
@@ -1190,7 +1164,79 @@ function inferReasonFromText(text){
   return '';
 }
 function getManual(cte){ return state.manual[cte] || {}; }
-function saveManual(cte, payload){ state.manual[cte] = {...(state.manual[cte] || {}), ...payload}; writeStorage('painel_ref_manual_v30', state.manual); }
+function saveManual(cte, payload){
+  state.manual[cte] = { ...(state.manual[cte] || {}), ...(payload || {}) };
+  writeStorage('painel_ref_manual_v30', state.manual);
+}
+
+function toSqlDate(brDate){
+  const v = String(brDate || '').trim();
+  if(!v) return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return null;
+}
+
+function mapManualRowFromSupabase(row){
+  if(!row) return null;
+  const cte = String(row.documento || row.cte || '').trim();
+  if(!cte) return null;
+
+  return {
+    cte,
+    payload: {
+      requestDate: toInputDate(row.solicitacao || ''),
+      reason: row.motivo || '',
+      detail: row.detalhamento || '',
+      audit: String(row.auditoria || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
+    }
+  };
+}
+
+async function loadManualFromSupabase(){
+  if(!ensureSupabaseConnected()) return false;
+  const { data, error } = await state.supabase
+    .from('refaturamento_manual')
+    .select('*');
+
+  if(error){
+    console.error('Erro carregando refaturamento_manual:', error);
+    return false;
+  }
+
+  (data || []).forEach(row => {
+    const mapped = mapManualRowFromSupabase(row);
+    if(mapped) saveManual(mapped.cte, mapped.payload);
+  });
+
+  return true;
+}
+
+async function saveManualToSupabase(cte, payload){
+  if(!ensureSupabaseConnected()){
+    return { ok:false, message:'Supabase não configurada.' };
+  }
+
+  const row = {
+    documento: String(cte || '').trim(),
+    solicitacao: toInputDate(payload.requestDate),
+    motivo: String(payload.reason || '').trim(),
+    detalhamento: String(payload.detail || '').trim(),
+    auditoria: String(payload.audit || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
+  };
+
+  const res = await state.supabase
+    .from('refaturamento_manual')
+    .upsert([row], { onConflict:'documento' });
+
+  if(res.error){
+    console.error('Erro salvando refaturamento_manual:', res.error);
+    return { ok:false, message: res.error?.message || 'Erro ao salvar na Supabase.' };
+  }
+
+  return { ok:true };
+}
 function destroyChart(name){ if(state.charts[name]) state.charts[name].destroy(); }
 function makeBarChart(id, labels, data, horizontal=false, label='Valor'){
   destroyChart(id);
@@ -1735,7 +1781,7 @@ function renderManualTable(){
         <td><strong>${esc(r.refaturado)}</strong></td>
         <td>${esc(r.tomadorRefaturado || '-')}</td>
         <td>${displayDate(r.dataRefaturado)}</td>
-        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(manual.requestDate || '')}"></td>
+        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(toInputDate(manual.requestDate || ''))}"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="reason">${options.replace(`value="${esc(motivo)}"`,`value="${esc(motivo)}" selected`)}</select></td>
         <td><input class="manual-input" data-cte="${esc(r.refaturado)}" data-field="detail" value="${esc(manual.detail || '')}" placeholder="Detalhar"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="audit"><option value="nao" ${manual.audit === 'nao' || !manual.audit ? 'selected' : ''}>Não</option><option value="sim" ${manual.audit === 'sim' ? 'selected' : ''}>Sim</option></select></td>
@@ -2123,7 +2169,7 @@ function renderManualTable(){
         <td><strong>${esc(r.refaturado)}</strong></td>
         <td>${esc(r.tomadorRefaturado || '-')}</td>
         <td>${displayDate(r.dataRefaturado)}</td>
-        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(manual.requestDate || '')}"></td>
+        <td><input type="date" class="manual-input" data-cte="${esc(r.refaturado)}" data-field="requestDate" value="${esc(toInputDate(manual.requestDate || ''))}"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="reason">${options.replace(`value="${esc(motivo)}"`,`value="${esc(motivo)}" selected`)}</select></td>
         <td><input class="manual-input" data-cte="${esc(r.refaturado)}" data-field="detail" value="${esc(manual.detail || '')}" placeholder="Detalhar"></td>
         <td><select class="manual-input" data-cte="${esc(r.refaturado)}" data-field="audit"><option value="nao" ${manual.audit === 'nao' || !manual.audit ? 'selected' : ''}>Não</option><option value="sim" ${manual.audit === 'sim' ? 'selected' : ''}>Sim</option></select></td>
@@ -2439,16 +2485,23 @@ function bindFilters(){
   });
 }
 function bindManualSave(){
-  document.addEventListener('click', function(e){
+  document.addEventListener('click', async function(e){
     const btn = e.target.closest('.btn-save-manual');
     if(!btn) return;
     const cte = btn.getAttribute('data-cte');
     const fields = Array.from(document.querySelectorAll(`.manual-input[data-cte="${cte}"]`));
     const payload = {};
     fields.forEach(field => { payload[field.getAttribute('data-field')] = field.value; });
+
     saveManual(cte, payload);
+    const result = await saveManualToSupabase(cte, payload);
     renderAll();
-    alert('Cadastro salvo com sucesso.');
+
+    if(result.ok){
+      alert('Cadastro salvo com sucesso.');
+    }else{
+      alert('Salvou localmente, mas não conseguiu salvar na Supabase: ' + result.message);
+    }
   });
 }
 function bindConfigActions(){
@@ -2572,6 +2625,7 @@ function bindProdExcelImport(){
 async function bootstrap(){
   document.getElementById('reasonBox').value = state.reasons.join('\n');
   connectSupabase();
+  await loadManualFromSupabase();
   renderAll();
   await fetchRemoteMonthKeys();
 }
@@ -2715,26 +2769,20 @@ function renderUsuariosView(){
 }
 
 function renderPerformanceView(){
-  const allRows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
-  const rows = usuarioTemRestricao() ? allRows.filter(x => mesmoUsuarioAcesso(x.usuario)) : allRows;
+  const rows = aggregateProd().filter(x => x.totalDocs > 0 || x.erros > 0);
   const select = document.getElementById('performanceUserSelect');
   let selectedUser = 'TODOS';
   if(select){
     const cur = select.value || 'TODOS';
     select.innerHTML = '<option value="TODOS">Todos</option>' + rows.map(x => `<option value="${esc(x.usuario)}">${esc(x.usuario)}</option>`).join('');
-    if(usuarioTemRestricao()){
-      aplicarBloqueioSelectUsuario(select);
-      selectedUser = select.value || usuarioRestritoAtual();
-    } else {
-      if(cur !== 'TODOS' && rows.some(x => x.usuario === cur)) select.value = cur;
-      else select.value = 'TODOS';
-      selectedUser = select.value;
-    }
+    if(cur !== 'TODOS' && rows.some(x => x.usuario === cur)) select.value = cur;
+    else select.value = 'TODOS';
+    selectedUser = select.value;
   }
 
   const sourceRows = selectedUser === 'TODOS'
     ? rows
-    : rows.filter(x => prodNorm(x.usuario) === prodNorm(selectedUser));
+    : rows.filter(x => x.usuario === selectedUser);
 
   makeBarChart('chartProdUsuarioMes', sourceRows.map(x => x.usuario), sourceRows.map(x => x.totalDocs), true, 'Quantidade');
 
@@ -2922,7 +2970,7 @@ async function loadMonthFromSupabase(monthKey){
   const setorRows = allRef.filter(r => r.tipo === 'setor');
   state.sheets = ['supabase'];
   state.refaturados = refRows.map(r => ({
-    dataRefaturado: '', tomadorRefaturado: r.cliente || '', refaturado: r.documento || '',
+    dataRefaturado: r.data_baixa || '', tomadorRefaturado: r.cliente || '', refaturado: r.documento || '',
     freteRefaturado: parseNumber(r.frete_refaturado || 0), dataOriginal: '', operadorOriginal: r.operador || r.usuario || '',
     tomadorOriginal: r.cliente || '', original: r.documento_original || r.original_doc || '', freteOriginal: parseNumber(r.frete_original || 0),
     diferenca: 0, reduzido: sectorNormalize(r.reduzido || r.setor || ''), motivoBaixa: r.motivo_baixa || '',
@@ -2930,7 +2978,7 @@ async function loadMonthFromSupabase(monthKey){
     debit: parseNumber(r.debito || 0), userSetor: r.operador || r.usuario || '', setorLancamento: r.setor || ''
   }));
   state.substitutos = subRows.map(r => ({
-    dataSubstituto: '', tomadorSubstituto: r.cliente || '', substituto: r.documento || '',
+    dataSubstituto: r.data_baixa || '', tomadorSubstituto: r.cliente || '', substituto: r.documento || '',
     freteSubstituto: parseNumber(r.frete_substituto || 0), dataOriginal: '', operadorOriginal: r.operador || r.usuario || '',
     tomadorOriginal: r.cliente || '', original: r.documento_original || r.original_doc || '', freteOriginal: parseNumber(r.frete_original || 0),
     diferenca: 0, reduzido: sectorNormalize(r.reduzido || r.setor || ''), motivoBaixa: r.motivo_baixa || '',
@@ -3069,27 +3117,7 @@ function aggregateUserReasons(rows){
 }
 
 function renderUsuariosView(){
-  const allUsersRows = usuariosErroAggregate();
-
-  const topSelect = document.getElementById('filtroUsuarioTop');
-  let selectedTopUser = 'TODOS';
-  if(topSelect){
-    const current = topSelect.value || 'TODOS';
-    topSelect.innerHTML = '<option value="TODOS">Todos</option>' + allUsersRows.map(x => `<option value="${esc(x.user)}">${esc(x.user)}</option>`).join('');
-    if(usuarioTemRestricao()){
-      aplicarBloqueioSelectUsuario(topSelect);
-      selectedTopUser = topSelect.value || usuarioRestritoAtual();
-    } else {
-      topSelect.value = current !== 'TODOS' && allUsersRows.some(x => x.user === current) ? current : 'TODOS';
-      selectedTopUser = topSelect.value;
-    }
-  }
-
-  const usersBase = selectedTopUser === 'TODOS'
-    ? allUsersRows
-    : allUsersRows.filter(x => prodNorm(x.user) === prodNorm(selectedTopUser));
-  const users = usersBase.slice(0,10);
-
+  const users = usuariosErroAggregate().slice(0,10);
   makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
   makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Valor');
   document.getElementById('tbodyUsuarios').innerHTML = users.length
@@ -3097,21 +3125,14 @@ function renderUsuariosView(){
     : `<tr><td colspan="3" class="center muted">Sem dados</td></tr>`;
 
   const select = document.getElementById('usuariosReasonSelect');
-  const allUsers = allUsersRows.map(x => x.user);
+  const allUsers = usuariosErroAggregate().map(x => x.user);
   let selectedUser = 'TODOS';
   if(select){
     const current = select.value || 'TODOS';
     select.innerHTML = '<option value="TODOS">Todos</option>' + allUsers.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
-    if(usuarioTemRestricao()){
-      aplicarBloqueioSelectUsuario(select);
-      selectedUser = select.value || usuarioRestritoAtual();
-    } else if(current !== 'TODOS' && allUsers.includes(current)) {
-      select.value = current;
-      selectedUser = current;
-    } else {
-      select.value = 'TODOS';
-      selectedUser = 'TODOS';
-    }
+    if(current !== 'TODOS' && allUsers.includes(current)) select.value = current;
+    else select.value = 'TODOS';
+    selectedUser = select.value;
   }
 
   const detailRows = getUsuariosReasonDetailRows(selectedUser);
@@ -3321,7 +3342,6 @@ function exportPainelExcel(){
 }
 
 document.addEventListener('DOMContentLoaded', function(){
-  document.getElementById('filtroUsuarioTop')?.addEventListener('change', renderUsuariosView);
   document.getElementById('usuariosReasonSelect')?.addEventListener('change', renderUsuariosView);
   document.getElementById('setorReasonSelect')?.addEventListener('change', renderSetoresView);
 
@@ -3337,6 +3357,366 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   document.getElementById('btnExportExcel')?.addEventListener('click', exportPainelExcel);
 });
+
+
+/* =========================================================
+   PATCH FINAL LIMPO - ACESSO + DEDUPE/UPDATE SUPABASE
+   - não altera layout base, mês, parser ou cálculos do Excel
+   - corrige leitura duplicada da Supabase
+   - limpa registros antigos do mesmo mês que não existem mais no Excel
+   - operacional/consulta veem usuários/performance travados no usuarioRef
+========================================================= */
+function __getPerfilRefFinal(){
+  const url = new URLSearchParams(window.location.search);
+  return {
+    perfil: (url.get('perfil') || '').toLowerCase(),
+    usuarioRef: prodNorm(url.get('usuarioRef') || url.get('usuario') || '')
+  };
+}
+function __isRestritoUsuarioFinal(){
+  const p = __getPerfilRefFinal().perfil;
+  return p === 'operacional' || p === 'consulta';
+}
+function __usuarioPermitidoFinal(){
+  return __getPerfilRefFinal().usuarioRef;
+}
+function __normalizeUserFinal(v){ return prodNorm(v || ''); }
+function __filterByUsuarioRefFinal(rows, getter){
+  if(!__isRestritoUsuarioFinal()) return rows;
+  const allowed = __usuarioPermitidoFinal();
+  if(!allowed) return [];
+  return (rows || []).filter(x => __normalizeUserFinal(getter(x)) === allowed);
+}
+function __enableAccessMenusFinal(){
+  const { perfil } = __getPerfilRefFinal();
+  if(perfil === 'operacional' || perfil === 'consulta'){
+    ['usuarios','performance'].forEach(view => {
+      const btn = document.querySelector(`[data-view="${view}"]`);
+      if(btn) btn.style.display = '';
+    });
+  }
+}
+function __ensureUsuarioTopFilterFinal(){
+  const section = document.getElementById('usuarios');
+  if(!section || document.getElementById('filtroUsuarioTop')) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'card';
+  wrap.style.marginBottom = '16px';
+  wrap.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+      <div>
+        <h3>Filtro da análise</h3>
+        <div class="sub">Controla os gráficos e a tabela principal desta aba.</div>
+      </div>
+      <div class="field" style="max-width:280px;min-width:200px;">
+        <label>Usuário</label>
+        <select id="filtroUsuarioTop"></select>
+      </div>
+    </div>`;
+  section.insertBefore(wrap, section.firstChild);
+  document.getElementById('filtroUsuarioTop')?.addEventListener('change', renderUsuariosView);
+}
+function __setOptionsPreserveFinal(select, values, defaultLabel){
+  if(!select) return 'TODOS';
+  const current = select.value || 'TODOS';
+  const opts = ['<option value="TODOS">'+(defaultLabel || 'Todos')+'</option>'].concat(values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`));
+  select.innerHTML = opts.join('');
+  if(current !== 'TODOS' && values.includes(current)) select.value = current;
+  else select.value = 'TODOS';
+  return select.value;
+}
+function __applyUsuarioLockFinal(select){
+  if(!select) return;
+  if(__isRestritoUsuarioFinal()){
+    const allowed = __usuarioPermitidoFinal();
+    if(allowed){
+      if(!Array.from(select.options).some(o => o.value === allowed)){
+        select.insertAdjacentHTML('beforeend', `<option value="${esc(allowed)}">${esc(allowed)}</option>`);
+      }
+      select.value = allowed;
+    }
+    select.disabled = true;
+  }else{
+    select.disabled = false;
+  }
+}
+function __remoteRefKeyFinal(row){
+  return `${row.tipo || ''}|${row.documento || ''}`;
+}
+function __remoteSetorNaturalKeyFinal(row){
+  return [
+    'setor',
+    upper(row.setor || ''),
+    upper(row.cliente || ''),
+    prodNorm(row.operador || row.usuario || ''),
+    String(row.documento_original || row.original_doc || '').trim(),
+    normalizeRowValue(parseNumber(row.debito || 0))
+  ].join('|');
+}
+function __dedupeRemoteRefRowsFinal(rows){
+  const map = new Map();
+  (rows || []).forEach(row => {
+    const baseKey = row.tipo === 'setor' ? __remoteSetorNaturalKeyFinal(row) : __remoteRefKeyFinal(row);
+    const prev = map.get(baseKey);
+    if(!prev){ map.set(baseKey, row); return; }
+    const prevHasDate = !!prev.data_baixa;
+    const rowHasDate = !!row.data_baixa;
+    const prevUpdated = String(prev.updated_at || prev.created_at || '');
+    const rowUpdated = String(row.updated_at || row.created_at || '');
+    if((rowHasDate && !prevHasDate) || (rowHasDate === prevHasDate && rowUpdated > prevUpdated)) map.set(baseKey, row);
+  });
+  return Array.from(map.values());
+}
+async function __deleteByIdsFinal(table, ids){
+  const clean = (ids || []).filter(Boolean);
+  for(let i = 0; i < clean.length; i += 100){
+    const chunk = clean.slice(i, i + 100);
+    const res = await state.supabase.from(table).delete().in('id', chunk);
+    if(res.error) return res.error;
+  }
+  return null;
+}
+async function loadMonthFromSupabase(monthKey){
+  if(!ensureSupabaseConnected()) return false;
+  if(!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) return false;
+  const [ano, mes] = monthKey.split('-');
+  const [{ data: refData, error: refError }, { data: prodData, error: prodError }] = await Promise.all([
+    state.supabase.from('refaturamento_importado').select('*').eq('ano', ano).eq('mes', mes),
+    state.supabase.from('produtividade_usuarios').select('*').eq('ano', ano).eq('mes', mes)
+  ]);
+  if(refError){ document.getElementById('syncStatus').textContent = 'Erro ao carregar refaturamento: ' + refError.message; console.error(refError); return false; }
+  if(prodError){ document.getElementById('syncStatus').textContent = 'Erro ao carregar produtividade: ' + prodError.message; console.error(prodError); return false; }
+
+  const allRef = __dedupeRemoteRefRowsFinal(refData || []).sort((a,b) => String(a.documento || '').localeCompare(String(b.documento || '')));
+  const allProd = (prodData || []).slice().sort((a,b) => String(a.operador || '').localeCompare(String(b.operador || '')));
+  const refRows = allRef.filter(r => r.tipo === 'refaturado');
+  const subRows = allRef.filter(r => r.tipo === 'substituto');
+  const setorRows = allRef.filter(r => r.tipo === 'setor');
+
+  state.sheets = ['supabase'];
+  state.refaturados = refRows.map(r => ({
+    dataRefaturado: toInputDate(r.data_baixa || ''),
+    tomadorRefaturado: r.cliente || '',
+    refaturado: r.documento || '',
+    freteRefaturado: parseNumber(r.frete_refaturado || 0),
+    dataOriginal: '',
+    operadorOriginal: r.operador || r.usuario || '',
+    tomadorOriginal: r.cliente || '',
+    original: r.documento_original || r.original_doc || '',
+    freteOriginal: parseNumber(r.frete_original || 0),
+    diferenca: 0,
+    reduzido: r.reduzido || r.setor || '',
+    motivoBaixa: r.motivo_baixa || '',
+    clientGroup: clientGroup(r.cliente || ''),
+    originalTail: (tailDigits(r.documento_original || r.original_doc || '') || '').replace(/^0+/,'') || '0',
+    debit: parseNumber(r.debito || 0),
+    userSetor: r.operador || r.usuario || '',
+    setorLancamento: r.setor || ''
+  }));
+  state.substitutos = subRows.map(r => ({
+    dataSubstituto: toInputDate(r.data_baixa || ''),
+    tomadorSubstituto: r.cliente || '',
+    substituto: r.documento || '',
+    freteSubstituto: parseNumber(r.frete_substituto || 0),
+    dataOriginal: '',
+    operadorOriginal: r.operador || r.usuario || '',
+    tomadorOriginal: r.cliente || '',
+    original: r.documento_original || r.original_doc || '',
+    freteOriginal: parseNumber(r.frete_original || 0),
+    diferenca: 0,
+    reduzido: r.reduzido || r.setor || '',
+    motivoBaixa: r.motivo_baixa || '',
+    clientGroup: clientGroup(r.cliente || ''),
+    originalTail: (tailDigits(r.documento_original || r.original_doc || '') || '').replace(/^0+/,'') || '0',
+    debit: 0
+  }));
+  state.setores = setorRows.map(r => ({
+    data: toInputDate(r.data_baixa || ''),
+    docto: String(r.documento || '').split('|')[2] || '',
+    cliente: r.cliente || '',
+    debit: parseNumber(r.debito || 0),
+    documentos: docTokens(r.documento_original || r.original_doc || ''),
+    usuario: r.operador || r.usuario || '',
+    setor: r.setor || 'NÃO IDENTIFICADO',
+    clientGroup: clientGroup(r.cliente || '')
+  }));
+  state.prodRows = [];
+  allProd.forEach(r => {
+    const usuario = prodNorm(r.operador || r.usuario || '');
+    const pushRow = (tipo, quantidade) => { const q = parseNumber(quantidade || 0); if(q > 0) state.prodRows.push({ usuario, tipo, quantidade:q }); };
+    pushRow('ctrc', r.ctrc); pushRow('manifesto', r.manifesto); pushRow('ost', r.ost); pushRow('nf.fat', r.nf_fat);
+  });
+
+  const snapshot = cloneMonthlySnapshot();
+  state.annual[monthKey] = { ...currentAnnualSummary(), snapshot };
+  writeStorage('painel_ref_annual_v32', state.annual);
+  state.annualProd[monthKey] = {
+    documentos: (state.prodRows || []).filter(x => ['ctrc','ost'].includes(normalizeDocType(x.tipo))).reduce((s,x)=>s+Number(x.quantidade||0),0),
+    rows: JSON.parse(JSON.stringify(state.prodRows || []))
+  };
+  writeStorage('painel_ref_annual_prod_v36', state.annualProd);
+  state.selectedMonthKey = monthKey;
+  applySnapshot(snapshot);
+  refreshMonthViewSelect();
+  const monthSel = document.getElementById('monthViewSelect'); if(monthSel) monthSel.value = monthKey;
+  const ignored = (refData || []).length - allRef.length;
+  const msgIgnored = ignored > 0 ? ` (${ignored} duplicado(s) ignorado(s) na leitura)` : '';
+  document.getElementById('syncStatus').textContent = `Mês ${mes}/${ano} carregado da Supabase${msgIgnored}.`;
+  renderAll();
+  return true;
+}
+async function syncSupabase(){
+  if(!ensureSupabaseConnected()){ alert('Configure a Supabase no HTML primeiro.'); return; }
+  const refAno = String(document.getElementById('annualYear')?.value || '').trim();
+  const refMes = String(document.getElementById('annualMonth')?.value || '').padStart(2,'0');
+  const prodAno = String(document.getElementById('prodYear')?.value || '').trim();
+  const prodMes = String(document.getElementById('prodMonth')?.value || '').padStart(2,'0');
+  const refKey = /^\d{4}-\d{2}$/.test(`${refAno}-${refMes}`) ? `${refAno}-${refMes}` : '';
+  const prodKey = /^\d{4}-\d{2}$/.test(`${prodAno}-${prodMes}`) ? `${prodAno}-${prodMes}` : '';
+  const refRowsRaw = refKey ? buildRefRowsForSync(refMes, refAno) : [];
+  const prodRowsRaw = prodKey ? buildProdRowsForSync(prodMes, prodAno) : [];
+  const refMapLocal = new Map();
+  refRowsRaw.forEach(row => {
+    row.data_baixa = toInputDate(row.data_baixa || '') || null;
+    const k = `${row.tipo}|${row.documento}|${row.mes}|${row.ano}`;
+    if(!refMapLocal.has(k)) refMapLocal.set(k, row);
+  });
+  const prodMapLocal = new Map();
+  prodRowsRaw.forEach(row => {
+    const k = `${row.operador}|${row.mes}|${row.ano}`;
+    if(!prodMapLocal.has(k)) prodMapLocal.set(k, row);
+  });
+  const refRows = Array.from(refMapLocal.values());
+  const prodRows = Array.from(prodMapLocal.values());
+  if(!refRows.length && !prodRows.length){ alert('Importe o Excel do mês e/ou o Excel de produtividade antes de sincronizar.'); return; }
+  document.getElementById('syncStatus').textContent = 'Comparando Excel com Supabase...';
+
+  let remoteRef = [], remoteProd = [];
+  if(refRows.length){
+    const res = await state.supabase.from('refaturamento_importado').select('*').eq('ano', refAno).eq('mes', refMes);
+    if(res.error){ document.getElementById('syncStatus').textContent = 'Erro: ' + res.error.message; console.error(res.error); return; }
+    remoteRef = res.data || [];
+  }
+  if(prodRows.length){
+    const res = await state.supabase.from('produtividade_usuarios').select('*').eq('ano', prodAno).eq('mes', prodMes);
+    if(res.error){ document.getElementById('syncStatus').textContent = 'Erro: ' + res.error.message; console.error(res.error); return; }
+    remoteProd = res.data || [];
+  }
+
+  // Limpa sobras antigas do mesmo mês: registros que estão no banco, mas não existem no Excel atual.
+  if(refRows.length && remoteRef.length){
+    const localKeys = new Set(refRows.map(row => `${row.tipo}|${row.documento}`));
+    const staleIds = remoteRef.filter(row => !localKeys.has(`${row.tipo}|${row.documento}`)).map(row => row.id).filter(Boolean);
+    const err = await __deleteByIdsFinal('refaturamento_importado', staleIds);
+    if(err){ document.getElementById('syncStatus').textContent = 'Erro limpando duplicados antigos: ' + err.message; console.error(err); return; }
+    remoteRef = remoteRef.filter(row => localKeys.has(`${row.tipo}|${row.documento}`));
+  }
+  if(prodRows.length && remoteProd.length){
+    const localUsers = new Set(prodRows.map(row => String(row.operador || '')));
+    const staleIds = remoteProd.filter(row => !localUsers.has(String(row.operador || ''))).map(row => row.id).filter(Boolean);
+    const err = await __deleteByIdsFinal('produtividade_usuarios', staleIds);
+    if(err){ document.getElementById('syncStatus').textContent = 'Erro limpando produtividade antiga: ' + err.message; console.error(err); return; }
+    remoteProd = remoteProd.filter(row => localUsers.has(String(row.operador || '')));
+  }
+
+  const remoteRefMap = mapByKey(remoteRef || [], row => `${row.tipo}|${row.documento}`);
+  const remoteProdMap = mapByKey(remoteProd || [], row => `${row.operador}`);
+  const refFinal = refRows.filter(row => { const prev = remoteRefMap.get(`${row.tipo}|${row.documento}`); return !prev || !sameRefRow(row, prev); });
+  const prodFinal = prodRows.filter(row => { const prev = remoteProdMap.get(`${row.operador}`); return !prev || !sameProdRow(row, prev); });
+
+  let refError = null, prodError = null;
+  if(refFinal.length){
+    const res = await state.supabase.from('refaturamento_importado').upsert(refFinal, { onConflict:'mes,ano,tipo,documento' });
+    refError = res.error || null;
+  }
+  if(prodFinal.length){
+    const res = await state.supabase.from('produtividade_usuarios').upsert(prodFinal, { onConflict:'mes,ano,operador' });
+    prodError = res.error || null;
+  }
+  if(refError || prodError){ const err = refError || prodError; document.getElementById('syncStatus').textContent = `Erro: ${err.message}`; console.error(err); return; }
+
+  const monthMap = new Map();
+  if(refKey) monthMap.set(refKey, { mes: refMes, ano: refAno, tem_refaturamento: refRows.length > 0, tem_produtividade: false });
+  if(prodKey){
+    const prevMonth = monthMap.get(prodKey) || { mes: prodMes, ano: prodAno, tem_refaturamento: false, tem_produtividade: false };
+    prevMonth.tem_produtividade = prodRows.length > 0 || prevMonth.tem_produtividade;
+    monthMap.set(prodKey, prevMonth);
+  }
+  for(const row of monthMap.values()){
+    const prev = await state.supabase.from('meses_importados').select('tem_refaturamento,tem_produtividade').eq('mes', row.mes).eq('ano', row.ano).maybeSingle();
+    const merged = { mes: row.mes, ano: row.ano, tem_refaturamento: !!row.tem_refaturamento || !!prev.data?.tem_refaturamento, tem_produtividade: !!row.tem_produtividade || !!prev.data?.tem_produtividade };
+    const monthRes = await state.supabase.from('meses_importados').upsert([merged], { onConflict:'mes,ano' });
+    if(monthRes.error){ document.getElementById('syncStatus').textContent = `Erro: ${monthRes.error.message}`; return; }
+  }
+  if(refKey && refRows.length){ state.annual[refKey] = { ...currentAnnualSummary(), snapshot: cloneMonthlySnapshot() }; writeStorage('painel_ref_annual_v32', state.annual); }
+  if(prodKey && prodRows.length){ state.annualProd[prodKey] = { documentos: (state.prodRows || []).filter(x => ['ctrc','ost'].includes(normalizeDocType(x.tipo))).reduce((s,x)=>s+Number(x.quantidade||0),0), rows: JSON.parse(JSON.stringify(state.prodRows || [])) }; writeStorage('painel_ref_annual_prod_v36', state.annualProd); }
+  await fetchRemoteMonthKeys();
+  const refsMsg = refKey ? `Ref ${refFinal.length} (${monthLabel(refKey)})` : 'Ref 0';
+  const prodMsg = prodKey ? `Prod ${prodFinal.length} (${monthLabel(prodKey)})` : 'Prod 0';
+  document.getElementById('syncStatus').textContent = `Sincronização concluída. Novos/alterados: ${refsMsg} | ${prodMsg}`;
+}
+function renderUsuariosView(){
+  __ensureUsuarioTopFilterFinal();
+  const allUsersAgg = usuariosErroAggregate();
+  const allUsers = allUsersAgg.map(x => x.user);
+  const topSelect = document.getElementById('filtroUsuarioTop');
+  let selectedTop = __setOptionsPreserveFinal(topSelect, allUsers, 'Todos');
+  __applyUsuarioLockFinal(topSelect);
+  selectedTop = topSelect ? (topSelect.value || 'TODOS') : 'TODOS';
+  let users = allUsersAgg;
+  if(selectedTop !== 'TODOS') users = users.filter(x => x.user === selectedTop);
+  users = users.slice(0,10);
+  makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
+  makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.value), true, 'Valor');
+  document.getElementById('tbodyUsuarios').innerHTML = users.length
+    ? users.map(x => `<tr><td>${esc(x.user)}</td><td>${x.qty}</td><td>${fmtMoney(x.value)}</td></tr>`).join('')
+    : `<tr><td colspan="3" class="center muted">Sem dados</td></tr>`;
+
+  const select = document.getElementById('usuariosReasonSelect');
+  let selectedUser = __setOptionsPreserveFinal(select, allUsers, 'Todos');
+  __applyUsuarioLockFinal(select);
+  selectedUser = select ? (select.value || 'TODOS') : 'TODOS';
+  const detailRows = getUsuariosReasonDetailRows(selectedUser);
+  const reasonAgg = aggregateUserReasons(detailRows).slice(0,12);
+  makeBarChart('chartUsuarioMotivosQtd', reasonAgg.map(x=>x.motivo), reasonAgg.map(x=>x.qty), true, 'Quantidade');
+  makeBarChart('chartUsuarioMotivosValor', reasonAgg.map(x=>x.motivo), reasonAgg.map(x=>x.value), true, 'Valor');
+  document.getElementById('tbodyUsuariosMotivos').innerHTML = detailRows.length
+    ? detailRows.map(r => `<tr><td><strong>${esc(r.cte)}</strong></td><td>${esc(r.cliente || '-')}</td><td>${esc(r.usuario)}</td><td>${esc(r.motivo)}</td><td>${fmtMoney(r.valor)}</td><td>${esc(r.setor)}</td></tr>`).join('')
+    : `<tr><td colspan="6" class="center muted">Sem dados para o usuário selecionado</td></tr>`;
+}
+function renderPerformanceView(){
+  const select = document.getElementById('performanceUserSelect');
+  const rowsAll = aggregateProd();
+  const allUsers = rowsAll.map(x => x.usuario).filter(Boolean);
+  let selected = __setOptionsPreserveFinal(select, allUsers, 'Todos');
+  __applyUsuarioLockFinal(select);
+  selected = select ? (select.value || 'TODOS') : 'TODOS';
+  let rows = rowsAll;
+  if(selected !== 'TODOS') rows = rows.filter(x => x.usuario === selected);
+  const docsLabels = rows.map(x => x.usuario);
+  const docsData = rows.map(x => x.totalDocs || 0);
+  makeBarChart('chartProdUsuarioMes', docsLabels, docsData, true, 'Documentos');
+  const typeTotals = DOC_TYPES.map(tipo => rows.reduce((s,x)=>s+Number(x[tipo]||0),0));
+  makeBarChart('chartProdTiposMes', ['CTRC','MANIFESTO','NF.FAT','OST'], typeTotals, false, 'Quantidade');
+  const perfRows = rows.filter(x => x.performance != null);
+  makeBarChart('chartPerformance', perfRows.map(x=>x.usuario), perfRows.map(x=>Number((x.performance||0).toFixed(2))), true, 'Performance');
+  const buckets = { 'ÓTIMO 99,51 – 100':0, 'REGULAR 97 – 99,50':0, 'RUIM 90 – 96,9':0 };
+  perfRows.forEach(x => {
+    const p = Number(x.performance || 0);
+    if(p >= 99.51) buckets['ÓTIMO 99,51 – 100']++;
+    else if(p >= 97) buckets['REGULAR 97 – 99,50']++;
+    else buckets['RUIM 90 – 96,9']++;
+  });
+  makePieChart('chartPerformancePie', Object.keys(buckets), Object.values(buckets));
+}
+document.addEventListener('DOMContentLoaded', function(){
+  __enableAccessMenusFinal();
+  __ensureUsuarioTopFilterFinal();
+  document.getElementById('filtroUsuarioTop')?.addEventListener('change', renderUsuariosView);
+  document.getElementById('usuariosReasonSelect')?.addEventListener('change', renderUsuariosView);
+  document.getElementById('performanceUserSelect')?.addEventListener('change', renderPerformanceView);
+});
+
 </script>
 </body>
 </html>
