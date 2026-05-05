@@ -1074,8 +1074,17 @@ function monthKey(v){
   return iso ? iso.slice(0,7) : '';
 }
 function classifyStatus(reqDate, baixaDate){
-  if(!toInputDate(reqDate)) return 'empty';
-  return monthKey(reqDate) === monthKey(baixaDate) ? 'ok' : 'bad';
+  const req = toInputDate(reqDate);
+  const baixa = toInputDate(baixaDate);
+
+  // Sem data de solicitação = continua sendo "sem solicitação".
+  if(!req) return 'empty';
+
+  // Se a baixa ainda não veio do Excel/Supabase, NÃO marcar como mês diferente.
+  // Antes isso virava falso positivo, porque comparava solicitação preenchida com baixa vazia.
+  if(!baixa) return 'ok';
+
+  return req.slice(0,7) === baixa.slice(0,7) ? 'ok' : 'bad';
 }
 function statusTag(status){
   if(status === 'ok') return '<span class="tag ok">Mês correto</span>';
