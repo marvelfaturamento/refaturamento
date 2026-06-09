@@ -4390,3 +4390,38 @@ if(document.readyState === 'loading'){
 }else{
   ligarBotaoReimportarMesSeguroV12();
 }
+
+
+/* PATCH v15 - Exibir NÃO IDENTIFICADO na Análise por Setor */
+(function(){
+  function norm(v){
+    return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+  }
+
+  if(typeof window.parseReducedSectors === 'function' && !window.__patchNaoIdentificadoV15){
+    const oldParse = window.parseReducedSectors;
+    window.parseReducedSectors = function(v){
+      const n = norm(v);
+      if(n.includes('NAO IDENTIFICADO')) return ['NÃO IDENTIFICADO'];
+      const r = oldParse(v) || [];
+      return r.length ? r : [];
+    };
+  }
+
+  if(typeof window.allSectorNames === 'function' && !window.__patchNaoIdentificadoV15){
+    const oldAll = window.allSectorNames;
+    window.allSectorNames = function(){
+      const set = new Set(oldAll() || []);
+      const rows = []
+        .concat(window.state?.substitutos || [])
+        .concat(window.state?.subRows || [])
+        .concat(window.state?.records || []);
+      if(rows.some(r => norm(r?.reduzido || r?.setor).includes('NAO IDENTIFICADO'))){
+        set.add('NÃO IDENTIFICADO');
+      }
+      return Array.from(set);
+    };
+  }
+
+  window.__patchNaoIdentificadoV15 = true;
+})();

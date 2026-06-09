@@ -84,3 +84,9 @@ Novos módulos preparados:
 Observação:
 Nesta versão, a lógica validada continua em `js/app.js` para não quebrar o painel.
 A pasta `modules` deixa o projeto pronto para mover as funções por etapas, com baixo risco.
+
+
+## v15 - NÃO IDENTIFICADO na análise por setor
+- Reconhece `NÃO IDENTIFICADO` como setor válido.
+- Exibe valores sem classificação na tabela/gráfico por setor.
+- Evita diferença entre Dashboard e Análise por Setor quando houver registro sem reduzido.
