@@ -1077,9 +1077,11 @@ async function saveManualToSupabase(cte, payload){
     return { ok:false, message:'Supabase não configurada.' };
   }
 
+  const solicitacaoSql = toInputDate(payload.requestDate) || null;
+
   const row = {
     documento: String(cte || '').trim(),
-    solicitacao: toInputDate(payload.requestDate),
+    solicitacao: solicitacaoSql,
     motivo: String(payload.reason || '').trim(),
     detalhamento: String(payload.detail || '').trim(),
     auditoria: String(payload.audit || 'nao').toLowerCase() === 'sim' ? 'sim' : 'nao'
@@ -2631,6 +2633,8 @@ function bindExcelImport(){
         const workbook = XLSX.read(evt.target.result, { type:'binary', cellDates:true });
         parseWorkbook(workbook);
         state.live = cloneMonthlySnapshot();
+        state.__ultimoExcelRefaturamento = cloneMonthlySnapshot();
+        state.__ultimoExcelRefaturamentoEm = new Date().toISOString();
         document.getElementById('importMsg').innerHTML = `
           Excel importado com sucesso.<br>
           Abas encontradas: <strong>${state.sheets.length}</strong><br>
@@ -2666,6 +2670,8 @@ function bindProdExcelImport(){
         const workbook = XLSX.read(evt.target.result, { type:'binary', cellDates:true });
         state.prodRows = parseProdWorkbook(workbook);
         state.live.prodRows = JSON.parse(JSON.stringify(state.prodRows));
+        state.__ultimoExcelProdutividade = JSON.parse(JSON.stringify(state.prodRows || []));
+        state.__ultimoExcelProdutividadeEm = new Date().toISOString();
         document.getElementById('prodImportMsg').textContent = `Excel de produtividade carregado. Registros: ${state.prodRows.length}`;
         renderAll();
       }catch(err){
@@ -4425,3 +4431,238 @@ if(document.readyState === 'loading'){
 
   window.__patchNaoIdentificadoV15 = true;
 })();
+
+
+/* =========================================================
+   PATCH FINAL - Reimportar mês usando o Excel recém-carregado
+   Corrige o caso em que o painel consultava a Supabase e perdia
+   o arquivo novo antes de apagar/gravar o mês.
+   ========================================================= */
+function __cloneFinalRefV15(obj){
+  return JSON.parse(JSON.stringify(obj || null));
+}
+
+function __getMesAnoReimportFinalV15(){
+  let ano = String(document.getElementById('annualYear')?.value || '').trim();
+  let mes = String(document.getElementById('annualMonth')?.value || '').trim();
+
+  if(!ano || !mes){
+    const key = String(state?.selectedMonthKey || document.getElementById('monthViewSelect')?.value || '').trim();
+    if(/^\d{4}-\d{2}$/.test(key)){
+      const parts = key.split('-');
+      ano = ano || parts[0];
+      mes = mes || parts[1];
+    }
+  }
+
+  mes = padMesV12(mes);
+  return { mes, ano };
+}
+
+function __buildRefRowsFromSnapshotFinalV15(snapshot, mes, ano){
+  if(!snapshotHasMonthlyData(snapshot)) return [];
+  const atual = cloneMonthlySnapshot();
+  try{
+    applySnapshot(snapshot);
+    const rows = buildRefRowsForSync(mes, ano) || [];
+    return rows.map(r => ({ ...r, mes, ano, data_baixa: toInputDate(r.data_baixa || '') || null }));
+  }finally{
+    applySnapshot(atual);
+  }
+}
+
+function __buildProdRowsFromCacheFinalV15(mes, ano){
+  const prod = Array.isArray(state.__ultimoExcelProdutividade)
+    ? JSON.parse(JSON.stringify(state.__ultimoExcelProdutividade))
+    : [];
+  if(!prod.length) return [];
+  const atual = state.prodRows;
+  try{
+    state.prodRows = prod;
+    return (buildProdRowsForSync(mes, ano) || []).map(r => ({ ...r, mes, ano }));
+  }finally{
+    state.prodRows = atual;
+  }
+}
+
+function __uniqueRefRowsFinalV15(rows){
+  const map = new Map();
+  (rows || []).forEach(row => {
+    const r = { ...row };
+    r.tipo = String(r.tipo || '').trim();
+    r.documento = String(r.documento || '').trim();
+    const k = `${r.ano}|${r.mes}|${r.tipo}|${r.documento}`;
+    if(r.tipo && r.documento && !map.has(k)) map.set(k, r);
+  });
+  return Array.from(map.values());
+}
+
+async function __countTabelaMesFinalV15(tabela, ano, mes){
+  const res = await state.supabase
+    .from(tabela)
+    .select('*', { count:'exact', head:true })
+    .eq('ano', String(ano))
+    .eq('mes', String(mes));
+  if(res.error) throw res.error;
+  return res.count || 0;
+}
+
+async function __deleteMesTabelaFinalV15(tabela, ano, mes){
+  const res = await state.supabase
+    .from(tabela)
+    .delete()
+    .eq('ano', String(ano))
+    .eq('mes', String(mes));
+  if(res.error) throw res.error;
+}
+
+async function __insertOrUpsertRefFinalV15(rows){
+  if(!rows.length) return null;
+  const chunkSize = 400;
+  for(let i=0; i<rows.length; i+=chunkSize){
+    const chunk = rows.slice(i, i + chunkSize);
+    let res = await state.supabase.from('refaturamento_importado').insert(chunk);
+    if(res.error){
+      res = await state.supabase.from('refaturamento_importado').upsert(chunk, { onConflict:'ano,mes,tipo,documento' });
+      if(res.error) return res.error;
+    }
+  }
+  return null;
+}
+
+async function __insertOrUpsertProdFinalV15(rows){
+  if(!rows.length) return null;
+  const chunkSize = 400;
+  for(let i=0; i<rows.length; i+=chunkSize){
+    const chunk = rows.slice(i, i + chunkSize);
+    let res = await state.supabase.from('produtividade_usuarios').insert(chunk);
+    if(res.error){
+      res = await state.supabase.from('produtividade_usuarios').upsert(chunk, { onConflict:'ano,mes,operador' });
+      if(res.error) return res.error;
+    }
+  }
+  return null;
+}
+
+async function reimportarMesSeguroV12(){
+  if(!state || !state.supabase){
+    alert('Supabase não conectada.');
+    return;
+  }
+
+  const { mes, ano } = __getMesAnoReimportFinalV15();
+  if(!mes || !ano){
+    alert('Selecione o mês e ano antes de reimportar.');
+    return;
+  }
+
+  const snapshotRef = state.__ultimoExcelRefaturamento;
+  const refRows = __uniqueRefRowsFinalV15(__buildRefRowsFromSnapshotFinalV15(snapshotRef, mes, ano));
+  const prodRows = __buildProdRowsFromCacheFinalV15(mes, ano);
+
+  if(!refRows.length && !prodRows.length){
+    alert('Importe o Excel de refaturamento e/ou produtividade antes de reimportar o mês.\n\nImportante: selecione o arquivo Excel novamente e depois clique em Reimportar mês seguro.');
+    return;
+  }
+
+  const ok = confirm(
+    'Reimportar mês ' + mes + '/' + ano + '?\n\n' +
+    'Esta ação vai apagar da Supabase os registros deste mês e gravar somente o Excel carregado agora.\n\n' +
+    'Refaturamento novo: ' + refRows.length + ' linha(s)\n' +
+    'Produtividade nova: ' + prodRows.length + ' linha(s)\n\n' +
+    'Deseja continuar?'
+  );
+  if(!ok) return;
+
+  const statusEl = document.getElementById('syncStatus') || document.getElementById('importStatus');
+
+  try{
+    if(statusEl) statusEl.textContent = 'Apagando mês ' + mes + '/' + ano + ' na Supabase...';
+
+    await __deleteMesTabelaFinalV15('refaturamento_importado', ano, mes);
+    await __deleteMesTabelaFinalV15('produtividade_usuarios', ano, mes);
+    await __deleteMesTabelaFinalV15('meses_importados', ano, mes);
+
+    const cRef = await __countTabelaMesFinalV15('refaturamento_importado', ano, mes);
+    const cProd = await __countTabelaMesFinalV15('produtividade_usuarios', ano, mes);
+    const cMes = await __countTabelaMesFinalV15('meses_importados', ano, mes);
+
+    if(cRef || cProd || cMes){
+      alert(
+        'Não foi possível limpar o mês completamente. Nada será gravado para evitar duplicidade.\n\n' +
+        'refaturamento_importado: ' + cRef + '\n' +
+        'produtividade_usuarios: ' + cProd + '\n' +
+        'meses_importados: ' + cMes
+      );
+      if(statusEl) statusEl.textContent = 'Reimportação bloqueada: mês não foi limpo completamente.';
+      return;
+    }
+
+    if(statusEl) statusEl.textContent = 'Mês limpo. Gravando Excel novo...';
+
+    const refErr = await __insertOrUpsertRefFinalV15(refRows);
+    if(refErr) throw refErr;
+
+    const prodErr = await __insertOrUpsertProdFinalV15(prodRows);
+    if(prodErr) throw prodErr;
+
+    const monthError = await __replaceMesImportado({
+      mes,
+      ano,
+      tem_refaturamento: refRows.length > 0,
+      tem_produtividade: prodRows.length > 0
+    });
+    if(monthError) throw monthError;
+
+    if(snapshotRef && refRows.length){
+      const atual = cloneMonthlySnapshot();
+      applySnapshot(snapshotRef);
+      const key = `${ano}-${mes}`;
+      state.annual[key] = { ...currentAnnualSummary(), snapshot: cloneMonthlySnapshot() };
+      state.selectedMonthKey = key;
+      writeStorage('painel_ref_annual_v32', state.annual);
+      applySnapshot(atual);
+    }
+
+    if(prodRows.length){
+      const key = `${ano}-${mes}`;
+      state.annualProd[key] = {
+        documentos: (state.__ultimoExcelProdutividade || []).filter(x => ['ctrc','ost'].includes(normalizeDocType(x.tipo))).reduce((s,x)=>s+Number(x.quantidade||0),0),
+        rows: JSON.parse(JSON.stringify(state.__ultimoExcelProdutividade || []))
+      };
+      writeStorage('painel_ref_annual_prod_v36', state.annualProd);
+    }
+
+    await fetchRemoteMonthKeys();
+    refreshMonthViewSelect();
+    await loadMonthFromSupabase(`${ano}-${mes}`);
+    renderAll();
+
+    if(statusEl) statusEl.textContent = 'Reimportação concluída: ' + refRows.length + ' refaturamento(s) e ' + prodRows.length + ' produtividade(s).';
+    alert('Mês ' + mes + '/' + ano + ' reimportado com segurança.\n\nRegistros de refaturamento gravados: ' + refRows.length + '\nRegistros de produtividade gravados: ' + prodRows.length);
+  }catch(err){
+    console.error('Erro na reimportação segura:', err);
+    if(statusEl) statusEl.textContent = 'Erro ao reimportar mês: ' + (err?.message || err);
+    alert('Erro ao reimportar mês: ' + (err?.message || err));
+  }
+}
+
+window.reimportarMesSeguroV12 = reimportarMesSeguroV12;
+window.replaceMesSupabase = reimportarMesSeguroV12;
+window.substituirMesNaSupabase = reimportarMesSeguroV12;
+window.substituirMesSupabase = reimportarMesSeguroV12;
+
+function ligarBotaoReimportarMesSeguroV15Final(){
+  const btn = document.getElementById('btnReimportarMesSeguro');
+  if(!btn) return;
+  btn.onclick = function(e){
+    e.preventDefault();
+    reimportarMesSeguroV12();
+  };
+}
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', ligarBotaoReimportarMesSeguroV15Final);
+}else{
+  ligarBotaoReimportarMesSeguroV15Final();
+}
