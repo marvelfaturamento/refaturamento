@@ -2545,6 +2545,80 @@ function bindManualSave(){
     }
   });
 }
+
+async function clearAnnualMonthEverywhere(key){
+  if(!key || !/^\d{4}-\d{2}$/.test(key)) return false;
+
+  const [ano, mes] = key.split('-');
+  const monthSelect = document.getElementById('monthViewSelect');
+  const isCurrentView = state.selectedMonthKey === key || (monthSelect && monthSelect.value === key);
+
+  // 1) Remove do armazenamento local anual.
+  delete state.annual[key];
+  delete state.annualProd[key];
+  writeStorage('painel_ref_annual_v32', state.annual);
+  writeStorage('painel_ref_annual_prod_v36', state.annualProd);
+
+  // 2) Remove da Supabase também; caso contrário o mês volta após F5/consulta.
+  if(ensureSupabaseConnected()){
+    const refDel = await state.supabase
+      .from('refaturamento_importado')
+      .delete()
+      .eq('ano', ano)
+      .eq('mes', mes);
+
+    if(refDel.error){
+      console.error(refDel.error);
+      alert('Erro ao apagar refaturamento na Supabase: ' + refDel.error.message);
+      return false;
+    }
+
+    const prodDel = await state.supabase
+      .from('produtividade_usuarios')
+      .delete()
+      .eq('ano', ano)
+      .eq('mes', mes);
+
+    if(prodDel.error){
+      console.error(prodDel.error);
+      alert('Erro ao apagar produtividade na Supabase: ' + prodDel.error.message);
+      return false;
+    }
+
+    const mesDel = await state.supabase
+      .from('meses_importados')
+      .delete()
+      .eq('ano', ano)
+      .eq('mes', mes);
+
+    if(mesDel.error){
+      console.error(mesDel.error);
+      alert('Erro ao apagar mês importado na Supabase: ' + mesDel.error.message);
+      return false;
+    }
+  }
+
+  // 3) Se o mês removido estiver carregado na tela, limpa a visão atual.
+  if(isCurrentView){
+    state.selectedMonthKey = '';
+    state.sheets = [];
+    state.refaturados = [];
+    state.substitutos = [];
+    state.setores = [];
+    state.prodRows = [];
+    state.live = { sheets: [], substitutos: [], refaturados: [], setores: [], prodRows: [] };
+    if(monthSelect) monthSelect.value = '';
+  }
+
+  state.remoteMonths = (state.remoteMonths || []).filter(k => k !== key);
+  refreshMonthViewSelect();
+  renderAll();
+  await fetchRemoteMonthKeys();
+  refreshMonthViewSelect();
+  renderAll();
+  return true;
+}
+
 function bindConfigActions(){
   document.getElementById('btnExportJson').addEventListener('click', function(){
     const blob = new Blob([JSON.stringify(state.manual, null, 2)], { type:'application/json' });
@@ -2576,13 +2650,22 @@ function bindConfigActions(){
   });
   document.getElementById('btnSaveCurrentMonth')?.addEventListener('click', saveCurrentMonthToAnnual);
   document.getElementById('btnSaveProdMonth')?.addEventListener('click', saveCurrentProdMonth);
-  document.getElementById('btnClearAnnual')?.addEventListener('click', function(){
-    if(!confirm('Limpar base anual?')) return;
-    state.annual = {};
-    writeStorage('painel_ref_annual_v32', state.annual);
-    if(state.selectedMonthKey){ state.selectedMonthKey = ''; applySnapshot(state.live); renderAll(); }
-    refreshMonthViewSelect();
-    renderAnnualView();
+  document.getElementById('btnClearAnnual')?.addEventListener('click', async function(){
+    const month = String(document.getElementById('annualMonth')?.value || '').padStart(2,'0');
+    const year = String(document.getElementById('annualYear')?.value || '').trim();
+    const key = /^\d{4}$/.test(year) && /^\d{2}$/.test(month) ? `${year}-${month}` : '';
+
+    if(!key){
+      alert('Selecione um mês e ano válidos para limpar.');
+      return;
+    }
+
+    if(!confirm(`Limpar somente ${monthLabel(key)} da base anual?`)) return;
+
+    const ok = await clearAnnualMonthEverywhere(key);
+    if(ok){
+      alert(`${monthLabel(key)} removido da base anual.`);
+    }
   });
   document.getElementById('annualSectorSelect')?.addEventListener('change', renderAnnualView);
   document.getElementById('btnApplyMonthView')?.addEventListener('click', applyMonthViewSelection);
@@ -2598,28 +2681,14 @@ function bindConfigActions(){
       applyMonthViewSelection();
       return;
     }
-    const btn = e.target.closest('[data-remove-key]');
-if(!btn) return;
+    const btn = e.target.closest('[data-remove-key], .btn-remove-annual');
+    if(!btn) return;
 
-const key = btn.getAttribute('data-remove-key');
+    const key = btn.getAttribute('data-remove-key') || btn.dataset.key;
+    if(!key) return;
 
-delete state.annual[key];
-delete state.annualProd[key];
-
-writeStorage('painel_ref_annual_v32', state.annual);
-writeStorage('painel_ref_annual_prod_v36', state.annualProd);
-
-if(state.selectedMonthKey === key){
-  state.selectedMonthKey = '';
-  applySnapshot(state.live);
-}
-
-refreshMonthViewSelect();
-renderAnnualView();
-    writeStorage('painel_ref_annual_v32', state.annual);
-    if(state.selectedMonthKey === btn.dataset.key){ state.selectedMonthKey = ''; applySnapshot(state.live); renderAll(); }
-    refreshMonthViewSelect();
-    renderAnnualView();
+    if(!confirm(`Remover ${monthLabel(key)} da base anual?`)) return;
+    clearAnnualMonthEverywhere(key);
   });
 }
 function logBox(text){ document.getElementById('logBox').value = text; }
