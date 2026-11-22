@@ -179,18 +179,15 @@ async function applyMonthViewSelection(){
   const select = document.getElementById('monthViewSelect');
   if(!select) return;
   const key = select.value || '';
-
   if(!key){
     state.selectedMonthKey = '';
     applySnapshot(state.live);
     renderAll();
     return;
   }
-
-  // Prioridade 1: usar o snapshot local salvo do mês.
-  // Antes, se o mês existisse na Supabase, o painel carregava a base remota primeiro.
-  // Quando a Supabase tinha linhas acumuladas/antigas gravadas no mês, os KPIs de Jan/2026
-  // apareciam com o total geral. Agora filtramos sempre pela data real da baixa.
+  // A Supabase é a fonte principal: snapshots locais podem estar incompletos
+  // especialmente no perfil operacional e em navegadores diferentes.
+  if(await loadMonthFromSupabase(key)) return;
   const entry = state.annual[key];
   if(entry && entry.snapshot){
     const filtered = snapshotFilteredByMonth(entry.snapshot, key);
@@ -199,11 +196,7 @@ async function applyMonthViewSelection(){
     renderAll();
     return;
   }
-
-  const loaded = await loadMonthFromSupabase(key);
-  if(!loaded){
-    alert('Esse mês não está salvo localmente e não foi possível carregar da Supabase.');
-  }
+  alert('Não foi possível carregar o mês da Supabase.');
 }
 
 const TRACKED_USERS = [
