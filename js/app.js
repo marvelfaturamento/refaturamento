@@ -3706,7 +3706,7 @@ function __getPerfilRefFinal(){
   const url = new URLSearchParams(window.location.search);
   return {
     perfil: (url.get('perfil') || '').toLowerCase(),
-    usuarioRef: prodNorm(url.get('usuarioRef') || url.get('usuario') || '')
+    usuarioRef: __usuarioCanonicoMarvel(url.get('usuarioRef') || url.get('usuario') || '')
   };
 }
 function __isRestritoUsuarioFinal(){
@@ -3716,7 +3716,12 @@ function __isRestritoUsuarioFinal(){
 function __usuarioPermitidoFinal(){
   return __getPerfilRefFinal().usuarioRef;
 }
-function __normalizeUserFinal(v){ return prodNorm(v || ''); }
+function __usuarioCanonicoMarvel(v){
+  const raw = prodNorm(v || '').replace(/@marvel\.com\.br$/i, '').replace(/@.*$/, '');
+  if(raw === 'karllin.oliveira' || raw === 'karlin.oliveira' || raw === 'karlin' || raw === 'karl(l)in') return 'karllin';
+  return raw;
+}
+function __normalizeUserFinal(v){ return __usuarioCanonicoMarvel(v); }
 function __filterByUsuarioRefFinal(rows, getter){
   if(!__isRestritoUsuarioFinal()) return rows;
   const allowed = __usuarioPermitidoFinal();
@@ -4086,12 +4091,7 @@ document.addEventListener('DOMContentLoaded', function(){
 /* ===== PATCH FINAL PRODUTIVIDADE - NÃO ALTERA MESES/SUPABASE ===== */
 (function(){
   function keyUser(v){
-    return String(v || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g,'')
-      .toLowerCase()
-      .replace(/\s+/g,'')
-      .trim();
+    return __usuarioCanonicoMarvel(v).replace(/\s+/g,'');
   }
   function displayUser(v){ return String(v || '').trim().toLowerCase(); }
   function sameUser(a,b){ return keyUser(a) === keyUser(b); }
