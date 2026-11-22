@@ -3723,6 +3723,20 @@ function __filterByUsuarioRefFinal(rows, getter){
 }
 function __enableAccessMenusFinal(){
   const { perfil } = __getPerfilRefFinal();
+  // Ocultar menus administrativos também na navegação interna do módulo.
+  const restricted = perfil === 'operacional' || perfil === 'consulta';
+  ['config','cadastro'].forEach(view => {
+    const btn = document.querySelector(`.menu button[data-view="${view}"]`);
+    if(btn){
+      btn.hidden = restricted;
+      btn.style.display = restricted ? 'none' : '';
+    }
+    const section = document.getElementById(view);
+    if(restricted && section?.classList.contains('active')){
+      section.classList.remove('active');
+      document.getElementById('usuarios')?.classList.add('active');
+    }
+  });
   if(perfil === 'operacional' || perfil === 'consulta'){
     ['usuarios','performance'].forEach(view => {
       const btn = document.querySelector(`[data-view="${view}"]`);
