@@ -1558,7 +1558,7 @@ function usuariosErroAggregate(){
 
   rows.forEach(r => {
 
-    const user = prodNorm(r.usuario || '');
+    const user = __usuarioCanonicoMarvel(r.usuario || '');
     if(!user) return;
 
     const tipo = String(r.tipo || '').toLowerCase().includes('sub')
@@ -2888,7 +2888,7 @@ function usuariosErroAggregate(){
 
   (getUsuariosReasonDetailRows('TODOS') || []).forEach(r => {
 
-    const user = prodNorm(r.usuario || '');
+    const user = __usuarioCanonicoMarvel(r.usuario || '');
     if(!user) return;
 
     const tipo = String(r.tipo || '').toLowerCase().includes('sub')
@@ -3362,7 +3362,7 @@ makeBarChart('chartAnnualSector', labels, totalSetorData, false, 'Valor');
 function getUsuariosReasonDetailRows(selectedUser){
 
   const refRows = (state.refaturados || []).filter(r => {
-    const user = prodNorm(r.userSetor || r.operadorOriginal || '');
+    const user = __usuarioCanonicoMarvel(r.userSetor || r.operadorOriginal || '');
     if(!user) return false;
 
     const setores = new Set([
@@ -3371,34 +3371,34 @@ function getUsuariosReasonDetailRows(selectedUser){
     ]);
 
     if(!setores.has('FATURAMENTO')) return false;
-    if(selectedUser && selectedUser !== 'TODOS' && user !== selectedUser) return false;
+    if(selectedUser && selectedUser !== 'TODOS' && user !== __usuarioCanonicoMarvel(selectedUser)) return false;
 
     return true;
   }).map(r => ({
     tipo: 'Refaturado',
     cte: String(r.refaturado || '').trim(),
     cliente: String(r.tomadorRefaturado || r.tomadorOriginal || '').trim(),
-    usuario: prodNorm(r.userSetor || r.operadorOriginal || ''),
+    usuario: __usuarioCanonicoMarvel(r.userSetor || r.operadorOriginal || ''),
     motivo: motivoFinal(r) || 'Sem preenchimento',
     valor: Number(r.debit || r.freteRefaturado || 0),
     setor: String(r.setorLancamento || r.reduzido || '').trim() || 'FATURAMENTO'
   }));
 
   const subRows = (state.substitutos || []).filter(r => {
-    const user = prodNorm(r.userSetor || r.operadorOriginal || '');
+    const user = __usuarioCanonicoMarvel(r.userSetor || r.operadorOriginal || '');
     if(!user) return false;
 
     const setores = parseReducedSectors(r.reduzido || r.setorLancamento || '').map(x => upper(x));
 
     if(!setores.includes('FATURAMENTO')) return false;
-    if(selectedUser && selectedUser !== 'TODOS' && user !== selectedUser) return false;
+    if(selectedUser && selectedUser !== 'TODOS' && user !== __usuarioCanonicoMarvel(selectedUser)) return false;
 
     return true;
   }).map(r => ({
     tipo: 'Substituto',
     cte: String(r.substituto || '').trim(),
     cliente: String(r.tomadorSubstituto || r.tomadorOriginal || '').trim(),
-    usuario: prodNorm(r.userSetor || r.operadorOriginal || ''),
+    usuario: __usuarioCanonicoMarvel(r.userSetor || r.operadorOriginal || ''),
     motivo: inferReasonFromText(r.motivoBaixa) || r.motivoBaixa || 'Sem preenchimento',
     valor: Number(r.freteSubstituto || 0),
     setor: String(r.reduzido || r.setorLancamento || '').trim() || 'FATURAMENTO'
@@ -4022,7 +4022,7 @@ console.log('USERS AGG FINAL', allUsersAgg);
   __applyUsuarioLockFinal(topSelect);
   selectedTop = topSelect ? (topSelect.value || 'TODOS') : 'TODOS';
   let users = allUsersAgg;
-  if(selectedTop !== 'TODOS') users = users.filter(x => x.user === selectedTop);
+  if(selectedTop !== 'TODOS') users = users.filter(x => __normalizeUserFinal(x.user) === __normalizeUserFinal(selectedTop));
   users = users.slice(0,10);
   makeBarChart('chartUsuariosErroQtd', users.map(x=>x.user), users.map(x=>x.qty), true, 'Quantidade');
   makeBarChart('chartUsuariosErroValor', users.map(x=>x.user), users.map(x=>x.total), true, 'Valor');
